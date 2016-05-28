@@ -696,6 +696,15 @@ func (s *Session) GuildChannels(guildID string) (st []*Channel, err error) {
 	return
 }
 
+// Updates the provided channels
+// guildID   : The ID of a Guild.
+// channels  : Updated channels.
+func (s *Session) GuildChannelsEdit(guildID string, channels []*Channel) (err error) {
+
+	_, err = s.Request("PATCH", GUILD_CHANNELS(guildID), channels)
+	return
+}
+
 // GuildChannelCreate creates a new channel in the given guild
 // guildID   : The ID of a Guild.
 // name      : Name of the channel (2-100 chars length)
