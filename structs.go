@@ -206,13 +206,15 @@ type Guild struct {
 	Region                      string            `json:"region"`
 	AfkChannelID                string            `json:"afk_channel_id"`
 	EmbedChannelID              string            `json:"embed_channel_id"`
-	OwnerID                     string            `json:"owner_id"`
 	JoinedAt                    string            `json:"joined_at"` // make this a timestamp
 	Splash                      string            `json:"splash"`
+	OwnerID                     string            `json:"owner_id"`
 	AfkTimeout                  int               `json:"afk_timeout"`
+	Permissions                 int               `json:"permissions"`
 	VerificationLevel           VerificationLevel `json:"verification_level"`
 	EmbedEnabled                bool              `json:"embed_enabled"`
 	Large                       bool              `json:"large"` // ??
+	Owner                       bool              `json:"owner"`
 	DefaultMessageNotifications int               `json:"default_message_notifications"`
 	Roles                       []*Role           `json:"roles"`
 	Emojis                      []*Emoji          `json:"emojis"`
