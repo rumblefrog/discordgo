@@ -289,10 +289,16 @@ type User struct {
 	Username      string `json:"username"`
 	Avatar        string `json:"Avatar"`
 	Discriminator string `json:"discriminator"`
-	Token         string `json:"token"`
-	Verified      bool   `json:"verified"`
-	MFAEnabled    bool   `json:"mfa_enabled"`
 	Bot           bool   `json:"bot"`
+	MFAEnabled    bool   `json:"mfa_enabled"`
+	Verified      bool   `json:"verified"`
+}
+
+// A SelfUser stores user data about the token owner.
+// Includes a few extra fields than a normal user struct.
+type SelfUser struct {
+	*User
+	Token string `json:"token"`
 }
 
 // A Settings stores data for a specific users Discord client settings.
@@ -333,7 +339,7 @@ type Ready struct {
 	Version           int           `json:"v"`
 	SessionID         string        `json:"session_id"`
 	HeartbeatInterval time.Duration `json:"heartbeat_interval"`
-	User              *User         `json:"user"`
+	User              *SelfUser     `json:"user"`
 	ReadState         []*ReadState  `json:"read_state"`
 	PrivateChannels   []*Channel    `json:"private_channels"`
 	Guilds            []*Guild      `json:"guilds"`
