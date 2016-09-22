@@ -33,6 +33,7 @@ type State struct {
 	TrackMembers    bool
 	TrackRoles      bool
 	TrackVoice      bool
+	TrackPresences  bool
 
 	guildMap   map[string]*Guild
 	channelMap map[string]*Channel
@@ -45,13 +46,14 @@ func NewState() *State {
 			PrivateChannels: []*Channel{},
 			Guilds:          []*Guild{},
 		},
-		TrackChannels: true,
-		TrackEmojis:   true,
-		TrackMembers:  true,
-		TrackRoles:    true,
-		TrackVoice:    true,
-		guildMap:      make(map[string]*Guild),
-		channelMap:    make(map[string]*Channel),
+		TrackChannels:  true,
+		TrackEmojis:    true,
+		TrackMembers:   true,
+		TrackRoles:     true,
+		TrackVoice:     true,
+		TrackPresences: true,
+		guildMap:       make(map[string]*Guild),
+		channelMap:     make(map[string]*Channel),
 	}
 }
 
@@ -236,6 +238,32 @@ func (s *State) Member(guildID, userID string) (*Member, error) {
 	}
 
 	return nil, errors.New("Member not found.")
+}
+
+// PresenceAdd adds a presence to the current world state, or
+// updates it if it already exists.
+func (s *State) PresenceAdd(guildID string, presence *Presence) error {
+	if s == nil {
+		return ErrNilState
+	}
+
+	guild, err := s.Guild(guildID)
+	if err != nil {
+		return err
+	}
+
+	s.Lock()
+	defer s.Unlock()
+
+	for i, p := range guild.Presences {
+		if p.User.ID == presence.User.ID {
+			guild.Presences[i] = presence
+			return nil
+		}
+	}
+
+	guild.Presences = append(guild.Presences, presence)
+	return nil
 }
 
 // RoleAdd adds a role to the current world state, or
@@ -631,6 +659,10 @@ func (s *State) onInterface(se *Session, i interface{}) (err error) {
 	case *GuildMemberRemove:
 		if s.TrackMembers {
 			err = s.MemberRemove(t.Member)
+		}
+	case *PresenceUpdate:
+		if s.TrackPresences {
+			err = s.PresenceAdd(t.GuildID, &t.Presence)
 		}
 	case *GuildRoleCreate:
 		if s.TrackRoles {
