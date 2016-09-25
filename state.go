@@ -662,7 +662,7 @@ func (s *State) onInterface(se *Session, i interface{}) (err error) {
 		}
 	case *PresenceUpdate:
 		if s.TrackPresences {
-			err = s.PresenceAdd(t.GuildID, &t.Presence)
+			err = s.PresenceAdd(t.GuildID, t.Presence)
 		}
 	case *GuildRoleCreate:
 		if s.TrackRoles {

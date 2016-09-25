@@ -259,9 +259,11 @@ type VoiceState struct {
 
 // A Presence stores the online, offline, or idle and game status of Guild members.
 type Presence struct {
-	User   *User  `json:"user"`
-	Status string `json:"status"`
-	Game   *Game  `json:"game"`
+	Game    *Game    `json:"game"`
+	User    *User    `json:"user"`
+	GuildID string   `json:"guild_id"`
+	Status  string   `json:"status"`
+	Roles   []string `json:"roles"`
 }
 
 // A Game struct holds the name of the "playing .." game for a user
@@ -378,13 +380,6 @@ type TypingStart struct {
 	UserID    string `json:"user_id"`
 	ChannelID string `json:"channel_id"`
 	Timestamp int    `json:"timestamp"`
-}
-
-// A PresenceUpdate stores data for the presence update websocket event.
-type PresenceUpdate struct {
-	Presence
-	GuildID string   `json:"guild_id"`
-	Roles   []string `json:"roles"`
 }
 
 // A MessageAck stores data for the message ack websocket event.

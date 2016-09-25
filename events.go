@@ -158,3 +158,8 @@ type UserSettingsUpdate map[string]interface{}
 type UserGuildSettingsUpdate struct {
 	*UserGuildSettings
 }
+
+// A PresenceUpdate stores data for the presence update websocket event.
+type PresenceUpdate struct {
+	*Presence
+}
