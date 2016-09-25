@@ -255,9 +255,19 @@ func (s *State) PresenceAdd(guildID string, presence *Presence) error {
 	s.Lock()
 	defer s.Unlock()
 
-	for i, p := range guild.Presences {
+	for _, p := range guild.Presences {
 		if p.User.ID == presence.User.ID {
-			guild.Presences[i] = presence
+
+			if presence.Game != nil {
+				p.Game = presence.Game
+			}
+			if presence.Roles != nil {
+				p.Roles = presence.Roles
+			}
+			if presence.Status != "" {
+				p.Status = presence.Status
+			}
+
 			return nil
 		}
 	}
