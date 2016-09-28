@@ -140,17 +140,17 @@ type ICEServer struct {
 
 // A Invite stores all data related to a specific Discord Guild or Channel invite.
 type Invite struct {
-	Guild     *Guild   `json:"guild"`
-	Channel   *Channel `json:"channel"`
-	Inviter   *User    `json:"inviter"`
-	Code      string   `json:"code"`
-	CreatedAt string   `json:"created_at"` // TODO make timestamp
-	MaxAge    int      `json:"max_age"`
-	Uses      int      `json:"uses"`
-	MaxUses   int      `json:"max_uses"`
-	XkcdPass  string   `json:"xkcdpass"`
-	Revoked   bool     `json:"revoked"`
-	Temporary bool     `json:"temporary"`
+	Guild     *Guild    `json:"guild"`
+	Channel   *Channel  `json:"channel"`
+	Inviter   *User     `json:"inviter"`
+	Code      string    `json:"code"`
+	CreatedAt Timestamp `json:"created_at"`
+	MaxAge    int       `json:"max_age"`
+	Uses      int       `json:"uses"`
+	MaxUses   int       `json:"max_uses"`
+	XkcdPass  string    `json:"xkcdpass"`
+	Revoked   bool      `json:"revoked"`
+	Temporary bool      `json:"temporary"`
 }
 
 // A Channel holds all data related to an individual Discord channel.
@@ -206,9 +206,9 @@ type Guild struct {
 	Region                      string            `json:"region"`
 	AfkChannelID                string            `json:"afk_channel_id"`
 	EmbedChannelID              string            `json:"embed_channel_id"`
-	JoinedAt                    string            `json:"joined_at"` // make this a timestamp
-	Splash                      string            `json:"splash"`
 	OwnerID                     string            `json:"owner_id"`
+	JoinedAt                    Timestamp         `json:"joined_at"`
+	Splash                      string            `json:"splash"`
 	AfkTimeout                  int               `json:"afk_timeout"`
 	Permissions                 int               `json:"permissions"`
 	VerificationLevel           VerificationLevel `json:"verification_level"`
@@ -222,7 +222,16 @@ type Guild struct {
 	Presences                   []*Presence       `json:"presences"`
 	Channels                    []*Channel        `json:"channels"`
 	VoiceStates                 []*VoiceState     `json:"voice_states"`
-	Unavailable                 *bool             `json:"unavailable"`
+	Unavailable                 bool              `json:"unavailable"`
+}
+
+// A UserGuild holds a brief version of a Guild
+type UserGuild struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Icon        string `json:"icon"`
+	Owner       bool   `json:"owner"`
+	Permissions int    `json:"permissions"`
 }
 
 // A GuildParams stores all the data needed to update discord guild settings

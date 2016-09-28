@@ -17,7 +17,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"reflect"
 	"runtime"
@@ -46,6 +45,17 @@ func (s *Session) Open() (err error) {
 			s.Unlock()
 		}
 	}()
+
+	// A basic state is a hard requirement for Voice.
+	if s.State == nil {
+		state := NewState()
+		state.TrackChannels = false
+		state.TrackEmojis = false
+		state.TrackMembers = false
+		state.TrackRoles = false
+		state.TrackVoice = false
+		s.State = state
+	}
 
 	if s.wsConn != nil {
 		err = errors.New("Web socket already opened.")
@@ -282,9 +292,9 @@ type requestGuildMembersOp struct {
 
 // RequestGuildMembers requests guild members from the gateway
 // The gateway responds with GuildMembersChunk events
-// guildID  : the ID of the guild to request members of
-// query    : string hat username sarts with, leave empty to return all members
-// limit    : max number of items to return, or 0 o reques all members matched
+// guildID  : The ID of the guild to request members of
+// query    : String that username starts with, leave empty to return all members
+// limit    : Max number of items to return, or 0 to request all members matched
 func (s *Session) RequestGuildMembers(guildID, query string, limit int) (err error) {
 	s.log(LogInformational, "called")
 
@@ -512,22 +522,13 @@ func (s *Session) onVoiceStateUpdate(se *Session, st *VoiceStateUpdate) {
 		return
 	}
 
-	// Need to have this happen at login and store it in the Session
-	// TODO : This should be done upon connecting to Discord, or
-	// be moved to a small helper function
-	self, err := s.User("@me") // TODO: move to Login/New
-	if err != nil {
-		log.Println(err)
-		return
-	}
-
-	// We only care about events that are about us
-	if st.UserID != self.ID {
+	// We only care about events that are about us.
+	if se.State.User.ID != st.UserID {
 		return
 	}
 
 	// Store the SessionID for later use.
-	voice.UserID = self.ID // TODO: Review
+	voice.UserID = st.UserID
 	voice.sessionID = st.SessionID
 }
 
