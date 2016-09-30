@@ -260,7 +260,7 @@ func (s *State) PresenceAdd(guildID string, presence *Presence) error {
 	return nil
 }
 
-// MemberRemove removes a member from current world state.
+// PresenceRemove removes a member from current world state.
 func (s *State) PresenceRemove(guildID, userID string) error {
 	if s == nil {
 		return ErrNilState
@@ -282,6 +282,29 @@ func (s *State) PresenceRemove(guildID, userID string) error {
 	}
 
 	return errors.New("User not found.")
+}
+
+// Presence gets a presnce by user ID from a guild.
+func (s *State) Presence(guildID, userID string) (*Presence, error) {
+	if s == nil {
+		return nil, ErrNilState
+	}
+
+	guild, err := s.Guild(guildID)
+	if err != nil {
+		return nil, err
+	}
+
+	s.Lock()
+	defer s.Unlock()
+
+	for _, p := range guild.Presences {
+		if p.User.ID == userID {
+			return p, nil
+		}
+	}
+
+	return nil, errors.New("User not found.")
 }
 
 // RoleAdd adds a role to the current world state, or
