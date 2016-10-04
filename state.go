@@ -242,9 +242,8 @@ func (s *State) PresenceAdd(guildID string, presence *Presence) error {
 	for _, p := range guild.Presences {
 		if p.User.ID == presence.User.ID {
 
-			if presence.Game != nil {
-				p.Game = presence.Game
-			}
+			p.Game = presence.Game
+
 			if presence.Roles != nil {
 				p.Roles = presence.Roles
 			}
