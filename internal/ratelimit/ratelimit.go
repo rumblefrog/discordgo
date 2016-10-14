@@ -135,7 +135,7 @@ var (
 	}
 )
 
-// Parses the url, removing everything not relevant to identifying a bucket.
+// ParseURL parses the url, removing everything not relevant to identifying a bucket.
 // such as minor variables
 func ParseURL(url string) string {
 
