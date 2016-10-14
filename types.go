@@ -61,6 +61,54 @@ func (r RESTError) Error() string {
 	return fmt.Sprintf("HTTP %s, %s", r.Response.Status, r.ResponseBody)
 }
 
+type RateLimiter struct {
+	sync.Mutex
+	buckets         map[string]*Bucket
+	globalRateLimit time.Duration
+}
+
+func newRateLimiter() *RateLimiter {
+	return &RateLimiter{
+		buckets: make(map[string]*Bucket),
+	}
+}
+
+func (r *RateLimiter) getBucket(key string) *Bucket {
+	if bucket, ok := r.buckets[key]; ok {
+		return bucket
+	}
+
+	b := &Bucket{remaining: 1, r: r}
+	r.buckets[key] = b
+	return b
+}
+
+// Locks untill were allowed to make a request
+func (r *RateLimiter) LockBucket(path string) *Bucket {
+	r.Lock()
+	b := r.getBucket(path)
+	r.Unlock()
+
+	b.Lock()
+
+	// If we ran out of calls and the reset time is still ahead of us
+	// Or if limit is set, and remaining is less than -limit, which means
+	// that we exeeded the next amount of calls aswell
+	for b.remaining < 1 && b.reset.After(time.Now()) {
+		toSleep := b.reset.Sub(time.Now())
+		time.Sleep(toSleep)
+
+	}
+
+	// Lock and unlock to check for global ratelimites after sleeping
+	r.Lock()
+	r.Unlock()
+
+	b.remaining--
+	log.Println(b.remaining)
+	return b
+}
+
 type Bucket struct {
 	sync.Mutex
 	remaining int
@@ -115,58 +163,9 @@ func (b *Bucket) Release(path string, headers http.Header) error {
 		return err
 	}
 
-	//Mase sure we don't acidentally increase it incase another request finished earlier
 	b.remaining = int(parsedRemaining)
 	b.reset = time.Unix(parsedReset, 0)
 
 	log.Println(path, parsedReset)
 	return nil
-}
-
-type RateLimiter struct {
-	sync.Mutex
-	buckets         map[string]*Bucket
-	globalRateLimit time.Duration
-}
-
-func newRateLimiter() *RateLimiter {
-	return &RateLimiter{
-		buckets: make(map[string]*Bucket),
-	}
-}
-
-func (r *RateLimiter) getBucket(key string) *Bucket {
-	if bucket, ok := r.buckets[key]; ok {
-		return bucket
-	}
-
-	b := &Bucket{remaining: 1, r: r}
-	r.buckets[key] = b
-	return b
-}
-
-// Locks untill were allowed to make a request
-func (r *RateLimiter) LockBucket(path string) *Bucket {
-	r.Lock()
-	b := r.getBucket(path)
-	r.Unlock()
-
-	b.Lock()
-
-	// If we ran out of calls and the reset time is still ahead of us
-	// Or if limit is set, and remaining is less than -limit, which means
-	// that we exeeded the next amount of calls aswell
-	for b.remaining < 1 && b.reset.After(time.Now()) {
-		toSleep := b.reset.Sub(time.Now())
-		time.Sleep(toSleep)
-
-	}
-
-	// Lock and unlock to check for global ratelimites after sleeping
-	r.Lock()
-	r.Unlock()
-
-	b.remaining--
-	log.Println(b.remaining)
-	return b
 }
