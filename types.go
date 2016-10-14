@@ -11,12 +11,8 @@ package discordgo
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
-	"log"
 	"net/http"
-	"strconv"
-	"sync"
 	"time"
 )
 
@@ -59,113 +55,4 @@ func newRestError(req *http.Request, resp *http.Response, body []byte) *RESTErro
 
 func (r RESTError) Error() string {
 	return fmt.Sprintf("HTTP %s, %s", r.Response.Status, r.ResponseBody)
-}
-
-type RateLimiter struct {
-	sync.Mutex
-	buckets         map[string]*Bucket
-	globalRateLimit time.Duration
-}
-
-func newRateLimiter() *RateLimiter {
-	return &RateLimiter{
-		buckets: make(map[string]*Bucket),
-	}
-}
-
-func (r *RateLimiter) getBucket(key string) *Bucket {
-	if bucket, ok := r.buckets[key]; ok {
-		return bucket
-	}
-
-	b := &Bucket{remaining: 1, r: r}
-	r.buckets[key] = b
-	return b
-}
-
-// Locks untill were allowed to make a request
-func (r *RateLimiter) LockBucket(path string) *Bucket {
-	r.Lock()
-	b := r.getBucket(path)
-	r.Unlock()
-
-	b.Lock()
-
-	// If we ran out of calls and the reset time is still ahead of us
-	// Or if limit is set, and remaining is less than -limit, which means
-	// that we exeeded the next amount of calls aswell
-	for b.remaining < 1 && b.reset.After(time.Now()) {
-		toSleep := b.reset.Sub(time.Now())
-		time.Sleep(toSleep)
-
-	}
-
-	// Lock and unlock to check for global ratelimites after sleeping
-	r.Lock()
-	r.Unlock()
-
-	b.remaining--
-	log.Println(b.remaining)
-	return b
-}
-
-type Bucket struct {
-	sync.Mutex
-	remaining int
-	limit     int
-	reset     time.Time
-	r         *RateLimiter
-}
-
-// Release unlocks the bucket and reads the headers to update the bucket's ratelimit info
-// to the relevant bucket or locks up the whole thing in case of a global
-// ratelimit.
-func (b *Bucket) Release(path string, headers http.Header) error {
-	defer b.Mutex.Unlock()
-	if headers == nil {
-		log.Println("Null headers")
-		return nil
-	}
-
-	remaining := headers.Get("X-RateLimit-Remaining")
-	reset := headers.Get("X-RateLimit-Reset")
-	global := headers.Get("X-RateLimit-Global")
-
-	// If it's global just keep the main ratelimit mutex locked
-	if global != "" {
-		retryAfer, err := strconv.Atoi(headers.Get("Retry-After"))
-		if err != nil {
-			return err
-		}
-
-		go func() {
-			b.r.Lock()
-			time.Sleep(time.Millisecond * time.Duration(retryAfer))
-			b.r.Unlock()
-		}()
-
-		log.Println("GLOBAL RATELIMIT", global)
-		return nil
-	}
-
-	if reset == "" || remaining == "" {
-		log.Println("RESET OR REMAINING EMPTY")
-		return errors.New("No ratelimit headers provided")
-	}
-
-	parsedReset, err := strconv.ParseInt(reset, 10, 64)
-	if err != nil {
-		return err
-	}
-
-	parsedRemaining, err := strconv.ParseInt(remaining, 10, 32)
-	if err != nil {
-		return err
-	}
-
-	b.remaining = int(parsedRemaining)
-	b.reset = time.Unix(parsedReset, 0)
-
-	log.Println(path, parsedReset)
-	return nil
 }

@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/jonas747/discordgo/internal/ratelimit"
 )
 
 // A Session represents a connection to the Discord API.
@@ -91,7 +92,7 @@ type Session struct {
 	// may switch to slices later
 	// TODO: performance test map vs slices
 	rateLimit   rateLimitMutex
-	ratelimiter *RateLimiter
+	ratelimiter *ratelimit.RateLimiter
 
 	// sequence tracks the current gateway api websocket sequence number
 	sequence int
