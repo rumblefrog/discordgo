@@ -127,11 +127,11 @@ func (b *Bucket) Release(headers http.Header) error {
 }
 
 var (
-	urlVarRegex = regexp.MustCompile("[0-9]+")
+	urlVarRegex = regexp.MustCompile(`[a-z]+\/[0-9]+`)
 
 	majoyVariables = []string{
-		"channels/",
-		"guilds/",
+		"channels",
+		"guilds",
 	}
 )
 
@@ -139,34 +139,23 @@ var (
 // such as minor variables
 func ParseURL(url string) string {
 
+	// Remove url parameters
 	noParam := strings.SplitN(url, "?", 2)[0]
 
-	indexes := urlVarRegex.FindAllStringIndex(noParam, -1)
+	// Remove minor url variables
+	result := urlVarRegex.ReplaceAllStringFunc(noParam, func(s string) string {
+		split := strings.SplitN(s, "/", 2)
 
-	// Probably gonna move to indexes
-	toRemove := make([]string, 0)
-
-OUTER:
-	for _, index := range indexes {
-		start := index[0]
-
-		// Look for major variables
-		for _, majorVar := range majoyVariables {
-			if len(majorVar) >= start {
-				continue
-			}
-			if noParam[index[0]-len(majorVar):index[0]] == majorVar {
-				// This is a major variable
-				continue OUTER
+		for _, major := range majoyVariables {
+			if split[0] == major {
+				// It's a major variable
+				return s
 			}
 		}
 
-		// Not a major var
-		toRemove = append(toRemove, noParam[index[0]:index[1]])
-	}
+		// It's a minor variable, strip the value
+		return split[0] + "/"
+	})
+	return result
 
-	for _, v := range toRemove {
-		noParam = strings.Replace(noParam, v, "", 1)
-	}
-	return noParam
 }
