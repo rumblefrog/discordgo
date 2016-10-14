@@ -26,7 +26,6 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -59,22 +58,24 @@ func (s *Session) request(method, urlStr, contentType string, b []byte, sequence
 	// received a 429 on. But this simple method works and
 	// is a lot less complex :) It also might even be more
 	// performat due to less checks and maps.
-	var mu *sync.Mutex
+	// var mu *sync.Mutex
 
-	s.rateLimit.Lock()
-	if s.rateLimit.url == nil {
-		s.rateLimit.url = make(map[string]*sync.Mutex)
-	}
+	// s.rateLimit.Lock()
+	// if s.rateLimit.url == nil {
+	// 	s.rateLimit.url = make(map[string]*sync.Mutex)
+	// }
 
-	bu := strings.Split(urlStr, "?")
-	mu, _ = s.rateLimit.url[bu[0]]
-	if mu == nil {
-		mu = new(sync.Mutex)
-		s.rateLimit.url[bu[0]] = mu
-	}
-	s.rateLimit.Unlock()
+	bu := strings.Split(urlStr, "?")[0]
+	bucket := s.ratelimiter.LockBucket(bu)
 
-	mu.Lock() // lock this URL for ratelimiting
+	// mu, _ = s.rateLimit.url[bu[0]]
+	// if mu == nil {
+	// 	mu = new(sync.Mutex)
+	// 	s.rateLimit.url[bu[0]] = mu
+	// }
+	// s.rateLimit.Unlock()
+
+	// mu.Lock() // lock this URL for ratelimiting
 	if s.Debug {
 		log.Printf("API REQUEST %8s :: %s\n", method, urlStr)
 		log.Printf("API REQUEST  PAYLOAD :: [%s]\n", string(b))
@@ -82,6 +83,7 @@ func (s *Session) request(method, urlStr, contentType string, b []byte, sequence
 
 	req, err := http.NewRequest(method, urlStr, bytes.NewBuffer(b))
 	if err != nil {
+		bucket.Release(bu, nil)
 		return
 	}
 
@@ -103,9 +105,11 @@ func (s *Session) request(method, urlStr, contentType string, b []byte, sequence
 
 	client := &http.Client{Timeout: (20 * time.Second)}
 
+	log.Println("SENDING REQ", urlStr)
 	resp, err := client.Do(req)
-	mu.Unlock() // unlock ratelimit mutex
+	//mu.Unlock() // unlock ratelimit mutex
 	if err != nil {
+		bucket.Release(bu, nil)
 		return
 	}
 	defer func() {
@@ -117,6 +121,7 @@ func (s *Session) request(method, urlStr, contentType string, b []byte, sequence
 
 	response, err = ioutil.ReadAll(resp.Body)
 	if err != nil {
+		bucket.Release(bu, nil)
 		return
 	}
 
@@ -129,6 +134,13 @@ func (s *Session) request(method, urlStr, contentType string, b []byte, sequence
 		log.Printf("API RESPONSE    BODY :: [%s]\n\n\n", response)
 	}
 
+	log.Println("Releasing bucket")
+	err = bucket.Release(bu, resp.Header)
+	if err != nil {
+		return
+	}
+
+	log.Println("Updated ratelimits")
 	switch resp.StatusCode {
 
 	case http.StatusOK:
@@ -149,15 +161,15 @@ func (s *Session) request(method, urlStr, contentType string, b []byte, sequence
 
 	case 429: // TOO MANY REQUESTS - Rate limiting
 
-		mu.Lock() // lock URL ratelimit mutex
-
+		//mu.Lock() // lock URL ratelimit mutex
 		rl := TooManyRequests{}
 		err = json.Unmarshal(response, &rl)
 		if err != nil {
 			s.log(LogError, "rate limit unmarshal error, %s", err)
-			mu.Unlock()
+			//mu.Unlock()
 			return
 		}
+		log.Println("RATELIMIT", rl.RetryAfter.String())
 		s.log(LogInformational, "Rate Limiting %s, retry in %d", urlStr, rl.RetryAfter)
 		s.handle(RateLimit{TooManyRequests: &rl, URL: urlStr})
 
@@ -165,7 +177,7 @@ func (s *Session) request(method, urlStr, contentType string, b []byte, sequence
 		// we can make the above smarter
 		// this method can cause longer delays than required
 
-		mu.Unlock() // we have to unlock here
+		//mu.Unlock() // we have to unlock here
 		response, err = s.request(method, urlStr, contentType, b, sequence)
 
 	default: // Error condition

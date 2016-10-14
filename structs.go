@@ -90,7 +90,8 @@ type Session struct {
 	// used to deal with rate limits
 	// may switch to slices later
 	// TODO: performance test map vs slices
-	rateLimit rateLimitMutex
+	rateLimit   rateLimitMutex
+	ratelimiter *RateLimiter
 
 	// sequence tracks the current gateway api websocket sequence number
 	sequence int
