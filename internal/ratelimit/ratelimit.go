@@ -1,7 +1,6 @@
 package ratelimit
 
 import (
-	"errors"
 	"log"
 	"net/http"
 	"regexp"
@@ -18,12 +17,14 @@ type RateLimiter struct {
 }
 
 func New() *RateLimiter {
+
 	return &RateLimiter{
 		buckets: make(map[string]*Bucket),
 	}
 }
 
 func (r *RateLimiter) getBucket(key string) *Bucket {
+
 	if bucket, ok := r.buckets[key]; ok {
 		return bucket
 	}
@@ -35,6 +36,7 @@ func (r *RateLimiter) getBucket(key string) *Bucket {
 
 // Locks untill were allowed to make a request
 func (r *RateLimiter) LockBucket(path string) *Bucket {
+
 	bucketKey := ParseURL(path)
 	log.Println("Before:", path, "after:", bucketKey)
 
@@ -74,29 +76,38 @@ type Bucket struct {
 }
 
 // Release unlocks the bucket and reads the headers to update the bucket's ratelimit info
-// to the relevant bucket or locks up the whole thing in case of a global
-// ratelimit.
+// to the relevant bucket or locks up the whole thing in case of a global ratelimit.
 func (b *Bucket) Release(headers http.Header) error {
+
 	defer b.mu.Unlock()
 	if headers == nil {
-		log.Println("Null headers")
 		return nil
 	}
 
 	remaining := headers.Get("X-RateLimit-Remaining")
 	reset := headers.Get("X-RateLimit-Reset")
 	global := headers.Get("X-RateLimit-Global")
+	retryAfter := headers.Get("Retry-After")
 
 	// If it's global just keep the main ratelimit mutex locked
 	if global != "" {
-		retryAfer, err := strconv.Atoi(headers.Get("Retry-After"))
+		parsedAfter, err := strconv.Atoi(retryAfter)
 		if err != nil {
 			return err
 		}
 
 		go func() {
+			// Make sure if several requests were waiting we don't sleep for n * retry-after
+			// where n is the amount of requests that were going on
+			sleepTo := time.Now().Add(time.Duration(parsedAfter) * time.Millisecond)
+
 			b.r.Lock()
-			time.Sleep(time.Millisecond * time.Duration(retryAfer))
+
+			sleepDuration := sleepTo.Sub(time.Now())
+			if sleepDuration > 0 {
+				time.Sleep(time.Millisecond * time.Duration(parsedAfter))
+			}
+
 			b.r.Unlock()
 		}()
 
@@ -104,32 +115,41 @@ func (b *Bucket) Release(headers http.Header) error {
 		return nil
 	}
 
-	if reset == "" || remaining == "" {
-		log.Println("RESET OR REMAINING EMPTY")
-		return errors.New("No ratelimit headers provided")
+	// Update reset time if either retry after or reset headers are present
+	// Prefer retryafter cause it's more accurate with all the time sync issues
+	if retryAfter != "" {
+		parsedAfter, err := strconv.ParseInt(retryAfter, 10, 64)
+		if err != nil {
+			return err
+		}
+		b.reset = time.Now().Add(time.Duration(parsedAfter) * time.Millisecond)
+
+	} else if reset != "" {
+		unix, err := strconv.ParseInt(reset, 10, 64)
+		if err != nil {
+			return err
+		}
+
+		b.reset = time.Unix(unix, 0)
 	}
 
-	parsedReset, err := strconv.ParseInt(reset, 10, 64)
-	if err != nil {
-		return err
+	// Udpate remaining if header is present
+	if remaining != "" {
+		parsedRemaining, err := strconv.ParseInt(remaining, 10, 32)
+		if err != nil {
+			return err
+		}
+		b.remaining = int(parsedRemaining)
 	}
 
-	parsedRemaining, err := strconv.ParseInt(remaining, 10, 32)
-	if err != nil {
-		return err
-	}
-
-	b.remaining = int(parsedRemaining)
-	b.reset = time.Unix(parsedReset, 0)
-
-	log.Println(b.Key, parsedReset)
 	return nil
 }
 
 var (
+	// matches for example "channels/123"
 	urlVarRegex = regexp.MustCompile(`[a-z]+\/[0-9]+`)
 
-	majoyVariables = []string{
+	majorVariables = []string{
 		"channels",
 		"guilds",
 	}
@@ -146,7 +166,7 @@ func ParseURL(url string) string {
 	result := urlVarRegex.ReplaceAllStringFunc(noParam, func(s string) string {
 		split := strings.SplitN(s, "/", 2)
 
-		for _, major := range majoyVariables {
+		for _, major := range majorVariables {
 			if split[0] == major {
 				// It's a major variable
 				return s
@@ -156,6 +176,6 @@ func ParseURL(url string) string {
 		// It's a minor variable, strip the value
 		return split[0] + "/"
 	})
-	return result
 
+	return result
 }
