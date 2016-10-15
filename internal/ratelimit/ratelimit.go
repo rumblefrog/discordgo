@@ -105,7 +105,7 @@ func (b *Bucket) Release(headers http.Header) error {
 
 			sleepDuration := sleepTo.Sub(time.Now())
 			if sleepDuration > 0 {
-				time.Sleep(time.Millisecond * time.Duration(parsedAfter))
+				time.Sleep(sleepDuration)
 			}
 
 			b.r.Unlock()
