@@ -88,9 +88,7 @@ type Session struct {
 	listening chan interface{}
 
 	// used to deal with rate limits
-	// may switch to slices later
-	// TODO: performance test map vs slices
-	rateLimit rateLimitMutex
+	ratelimiter *RateLimiter
 
 	// sequence tracks the current gateway api websocket sequence number
 	sequence int
@@ -184,6 +182,17 @@ type Emoji struct {
 	Roles         []string `json:"roles"`
 	Managed       bool     `json:"managed"`
 	RequireColons bool     `json:"require_colons"`
+}
+
+// APIName returns an correctly formatted API name for use in the MessageReactions endpoints.
+func (e *Emoji) APIName() string {
+	if e.ID != "" && e.Name != "" {
+		return e.Name + ":" + e.ID
+	}
+	if e.Name != "" {
+		return e.Name
+	}
+	return e.ID
 }
 
 // VerificationLevel type defination
@@ -436,8 +445,8 @@ type GuildRoleDelete struct {
 
 // A GuildBan stores data for a guild ban.
 type GuildBan struct {
-	User    *User  `json:"user"`
-	GuildID string `json:"guild_id"`
+	Reason string `json:"reason"`
+	User   *User  `json:"user"`
 }
 
 // A GuildEmojisUpdate stores data for a guild emoji update event.
@@ -517,6 +526,35 @@ type ChannelPinsUpdate struct {
 	ChannelID        string `json:"channel_id"`
 }
 
+// Webhook stores the data for a webhook.
+type Webhook struct {
+	ID        string `json:"id"`
+	GuildID   string `json:"guild_id"`
+	ChannelID string `json:"channel_id"`
+	User      *User  `json:"user"`
+	Name      string `json:"name"`
+	Avatar    string `json:"avatar"`
+	Token     string `json:"token"`
+}
+
+// WebhookParams is a struct for webhook params, used in the WebhookExecute command.
+type WebhookParams struct {
+	Content   string          `json:"content,omitempty"`
+	Username  string          `json:"username,omitempty"`
+	AvatarURL string          `json:"avatar_url,omitempty"`
+	TTS       bool            `json:"tts,omitempty"`
+	File      string          `json:"file,omitempty"`
+	Embeds    []*MessageEmbed `json:"embeds,omitempty"`
+}
+
+// MessageReaction stores the data for a message reaction.
+type MessageReaction struct {
+	UserID    string `json:"user_id"`
+	MessageID string `json:"message_id"`
+	Emoji     Emoji  `json:"emoji"`
+	ChannelID string `json:"channel_id"`
+}
+
 // Constants for the different bit offsets of text channel permissions
 const (
 	PermissionReadMessages = 1 << (iota + 10)
@@ -527,6 +565,7 @@ const (
 	PermissionAttachFiles
 	PermissionReadMessageHistory
 	PermissionMentionEveryone
+	PermissionUseExternalEmojis
 )
 
 // Constants for the different bit offsets of voice permissions
@@ -539,12 +578,21 @@ const (
 	PermissionVoiceUseVAD
 )
 
+// Constants for general management.
+const (
+	PermissionChangeNickname = 1 << (iota + 26)
+	PermissionManageNicknames
+	PermissionManageRoles
+	PermissionManageWebhooks
+	PermissionManageEmojis
+)
+
 // Constants for the different bit offsets of general permissions
 const (
 	PermissionCreateInstantInvite = 1 << iota
 	PermissionKickMembers
 	PermissionBanMembers
-	PermissionManageRoles
+	PermissionAdministrator
 	PermissionManageChannels
 	PermissionManageServer
 
