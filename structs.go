@@ -220,6 +220,7 @@ type Guild struct {
 	Splash                      string            `json:"splash"`
 	AfkTimeout                  int               `json:"afk_timeout"`
 	Permissions                 int               `json:"permissions"`
+	MemberCount                 int               `json:"member_count"`
 	VerificationLevel           VerificationLevel `json:"verification_level"`
 	EmbedEnabled                bool              `json:"embed_enabled"`
 	Large                       bool              `json:"large"` // ??
