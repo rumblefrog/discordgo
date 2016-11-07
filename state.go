@@ -166,9 +166,19 @@ func (s *State) MemberAdd(member *Member) error {
 	s.Lock()
 	defer s.Unlock()
 
-	for i, m := range guild.Members {
+	for _, m := range guild.Members {
 		if m.User.ID == member.User.ID {
-			guild.Members[i] = member
+			if member.JoinedAt != "" {
+				m.JoinedAt = member.JoinedAt
+			}
+			if member.Roles != nil {
+				m.Roles = member.Roles
+			}
+
+			// Seems to always be provided
+			m.Nick = member.Nick
+			m.User = member.User
+
 			return nil
 		}
 	}
