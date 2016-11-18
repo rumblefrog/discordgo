@@ -87,14 +87,21 @@ var (
 	EndpointChannelMessagesBulkDelete = func(cID string) string { return EndpointChannel(cID) + "/messages/bulk_delete" }
 	EndpointChannelMessagesPins       = func(cID string) string { return EndpointChannel(cID) + "/pins" }
 	EndpointChannelMessagePin         = func(cID, mID string) string { return EndpointChannel(cID) + "/pins/" + mID }
-	EndpointChannelWebhooks           = func(cID string) string { return EndpointChannel(cID) + "/webhooks" }
 
-	EndpointWebhook      = func(wID string) string { return EndpointWebhooks + wID }
-	EndpointWebhookToken = func(wID, token string) string { return EndpointWebhooks + wID + "/" + token }
+	EndpointChannelWebhooks = func(cID string) string { return EndpointChannel(cID) + "/webhooks" }
+	EndpointWebhook         = func(wID string) string { return EndpointWebhooks + wID }
+	EndpointWebhookToken    = func(wID, token string) string { return EndpointWebhooks + wID + "/" + token }
 
 	EndpointMessageReactions = func(cID, mID, eID string) string {
-		return EndpointChannelMessage(cID, mID) + "/reactions/" + eID + "/@me"
+		return EndpointChannelMessage(cID, mID) + "/reactions/" + eID
 	}
+	EndpointMessageReaction = func(cID, mID, eID, uID string) string {
+		return EndpointMessageReactions(cID, mID, eID) + "/" + uID
+	}
+
+	EndpointRelationships       = func() string { return EndpointUsers + "@me" + "/relationships" }
+	EndpointRelationship        = func(uID string) string { return EndpointRelationships() + "/" + uID }
+	EndpointRelationshipsMutual = func(uID string) string { return EndpointUsers + uID + "/relationships" }
 
 	EndpointInvite = func(iID string) string { return EndpointAPI + "invite/" + iID }
 

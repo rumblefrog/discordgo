@@ -14,6 +14,7 @@ package discordgo
 import (
 	"encoding/json"
 	"reflect"
+	"strconv"
 	"sync"
 	"time"
 
@@ -278,10 +279,11 @@ type VoiceState struct {
 
 // A Presence stores the online, offline, or idle and game status of Guild members.
 type Presence struct {
-	Game    *Game    `json:"game"`
+	GuildID string   `json:"guild_id"`
 	User    *User    `json:"user"`
 	Status  Status   `json:"status"`
-	GuildID string   `json:"guild_id"`
+	Game    *Game    `json:"game"`
+	Nick    string   `json:"nick"`
 	Roles   []string `json:"roles"`
 }
 
@@ -290,6 +292,37 @@ type Game struct {
 	Name string `json:"name"`
 	Type int    `json:"type"`
 	URL  string `json:"url"`
+}
+
+func (g *Game) UnmarshalJSON(bytes []byte) error {
+	temp := &struct {
+		Name string          `json:"name"`
+		Type json.RawMessage `json:"type"`
+		URL  string          `json:"url"`
+	}{}
+	err := json.Unmarshal(bytes, temp)
+	if err != nil {
+		return err
+	}
+	g.Name = temp.Name
+	g.URL = temp.URL
+
+	if temp.Type != nil {
+		err = json.Unmarshal(temp.Type, &g.Type)
+		if err == nil {
+			return nil
+		}
+
+		s := ""
+		err = json.Unmarshal(temp.Type, &s)
+		if err == nil {
+			g.Type, err = strconv.Atoi(s)
+		}
+
+		return err
+	}
+
+	return nil
 }
 
 // A Member stores user information for Guild members.

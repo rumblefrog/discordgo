@@ -874,6 +874,71 @@ func (s *Session) GuildRoleDelete(guildID, roleID string) (err error) {
 	return
 }
 
+// GuildPruneCount Returns the number of members that would be removed in a prune operation.
+// Requires 'KICK_MEMBER' permission.
+// guildID	: The ID of a Guild.
+// days		: The number of days to count prune for (1 or more).
+func (s *Session) GuildPruneCount(guildID string, days uint32) (count uint32, err error) {
+	count = 0
+
+	if days <= 0 {
+		err = errors.New("The number of days should be more than or equal to 1.")
+		return
+	}
+
+	p := struct {
+		Pruned uint32 `json:"pruned"`
+	}{}
+
+	uri := EndpointGuildPrune(guildID) + fmt.Sprintf("?days=%d", days)
+	body, err := s.RequestWithBucketID("GET", uri, nil, EndpointGuildPrune(guildID))
+
+	err = unmarshal(body, &p)
+	if err != nil {
+		return
+	}
+
+	count = p.Pruned
+
+	return
+}
+
+// GuildPrune Begin as prune operation. Requires the 'KICK_MEMBERS' permission.
+// Returns an object with one 'pruned' key indicating the number of members that were removed in the prune operation.
+// guildID	: The ID of a Guild.
+// days		: The number of days to count prune for (1 or more).
+func (s *Session) GuildPrune(guildID string, days uint32) (count uint32, err error) {
+
+	count = 0
+
+	if days <= 0 {
+		err = errors.New("The number of days should be more than or equal to 1.")
+		return
+	}
+
+	data := struct {
+		days uint32
+	}{days}
+
+	p := struct {
+		Pruned uint32 `json:"pruned"`
+	}{}
+
+	body, err := s.RequestWithBucketID("POST", EndpointGuildPrune(guildID), data, EndpointGuildPrune(guildID))
+	if err != nil {
+		return
+	}
+
+	err = unmarshal(body, &p)
+	if err != nil {
+		return
+	}
+
+	count = p.Pruned
+
+	return
+}
+
 // GuildIntegrations returns an array of Integrations for a guild.
 // guildID   : The ID of a Guild.
 func (s *Session) GuildIntegrations(guildID string) (st []*GuildIntegration, err error) {
@@ -1161,6 +1226,28 @@ func (s *Session) ChannelMessageSend(channelID string, content string) (st *Mess
 func (s *Session) ChannelMessageSendTTS(channelID string, content string) (st *Message, err error) {
 
 	return s.channelMessageSend(channelID, content, true)
+}
+
+// ChannelMessageSendEmbed sends a message to the given channel with embedded data (bot only).
+// channelID : The ID of a Channel.
+// embed     : The embed data to send.
+func (s *Session) ChannelMessageSendEmbed(channelID string, embed *MessageEmbed) (st *Message, err error) {
+	if embed != nil && embed.Type == "" {
+		embed.Type = "rich"
+	}
+
+	data := struct {
+		Embed *MessageEmbed `json:"embed"`
+	}{embed}
+
+	// Send the message to the given channel
+	response, err := s.RequestWithBucketID("POST", EndpointChannelMessages(channelID), data, EndpointChannelMessages(channelID))
+	if err != nil {
+		return
+	}
+
+	err = unmarshal(response, &st)
+	return
 }
 
 // ChannelMessageEdit edits an existing message, replacing it entirely with
@@ -1607,15 +1694,13 @@ func (s *Session) WebhookDeleteWithToken(webhookID, token string) (st *Webhook, 
 
 // WebhookExecute executes a webhook.
 // webhookID: The ID of a webhook.
-// token    : The auth token for the bebhook
+// token    : The auth token for the webhook
 func (s *Session) WebhookExecute(webhookID, token string, wait bool, data *WebhookParams) (err error) {
 	uri := EndpointWebhookToken(webhookID, token)
 
 	if wait {
 		uri += "?wait=true"
 	}
-
-	fmt.Println(uri)
 
 	_, err = s.RequestWithBucketID("POST", uri, data, EndpointWebhookToken("", ""))
 
@@ -1628,7 +1713,7 @@ func (s *Session) WebhookExecute(webhookID, token string, wait bool, data *Webho
 // emojiID   : Either the unicode emoji for the reaction, or a guild emoji identifier.
 func (s *Session) MessageReactionAdd(channelID, messageID, emojiID string) error {
 
-	_, err := s.RequestWithBucketID("PUT", EndpointMessageReactions(channelID, messageID, emojiID), nil, EndpointMessageReactions(channelID, "", ""))
+	_, err := s.RequestWithBucketID("PUT", EndpointMessageReaction(channelID, messageID, emojiID, "@me"), nil, EndpointMessageReaction(channelID, "", "", ""))
 
 	return err
 }
@@ -1637,9 +1722,10 @@ func (s *Session) MessageReactionAdd(channelID, messageID, emojiID string) error
 // channelID : The channel ID.
 // messageID : The message ID.
 // emojiID   : Either the unicode emoji for the reaction, or a guild emoji identifier.
-func (s *Session) MessageReactionRemove(channelID, messageID, emojiID string) error {
+// userID	 : @me or ID of the user to delete the reaction for.
+func (s *Session) MessageReactionRemove(channelID, messageID, emojiID, userID string) error {
 
-	_, err := s.RequestWithBucketID("DELETE", EndpointMessageReactions(channelID, messageID, emojiID), nil, EndpointMessageReactions(channelID, "", ""))
+	_, err := s.RequestWithBucketID("DELETE", EndpointMessageReaction(channelID, messageID, emojiID, userID), nil, EndpointMessageReaction(channelID, "", "", ""))
 
 	return err
 }
@@ -1662,11 +1748,77 @@ func (s *Session) MessageReactions(channelID, messageID, emojiID string, limit i
 		uri = fmt.Sprintf("%s?%s", uri, v.Encode())
 	}
 
-	body, err := s.RequestWithBucketID("GET", uri, nil, EndpointMessageReactions(channelID, "", ""))
+	body, err := s.RequestWithBucketID("GET", uri, nil, EndpointMessageReaction(channelID, "", "", ""))
 	if err != nil {
 		return
 	}
 
 	err = unmarshal(body, &st)
+	return
+}
+
+// ------------------------------------------------------------------------------------------------
+// Functions specific to Discord Relationships (Friends list)
+// ------------------------------------------------------------------------------------------------
+
+// RelationshipsGet returns an array of all the relationships of the user.
+func (s *Session) RelationshipsGet() (r []*Relationship, err error) {
+	body, err := s.RequestWithBucketID("GET", EndpointRelationships(), nil, EndpointRelationships())
+	if err != nil {
+		return
+	}
+
+	err = unmarshal(body, &r)
+	return
+}
+
+// relationshipCreate creates a new relationship. (I.e. send or accept a friend request, block a user.)
+// relationshipType : 1 = friend, 2 = blocked, 3 = incoming friend req, 4 = sent friend req
+func (s *Session) relationshipCreate(userID string, relationshipType int) (err error) {
+	data := struct {
+		Type int `json:"type"`
+	}{relationshipType}
+
+	_, err = s.RequestWithBucketID("PUT", EndpointRelationship(userID), data, EndpointRelationships())
+	return
+}
+
+// RelationshipFriendRequestSend sends a friend request to a user.
+// userID: ID of the user.
+func (s *Session) RelationshipFriendRequestSend(userID string) (err error) {
+	err = s.relationshipCreate(userID, 4)
+	return
+}
+
+// RelationshipFriendRequestAccept accepts a friend request from a user.
+// userID: ID of the user.
+func (s *Session) RelationshipFriendRequestAccept(userID string) (err error) {
+	err = s.relationshipCreate(userID, 1)
+	return
+}
+
+// RelationshipUserBlock blocks a user.
+// userID: ID of the user.
+func (s *Session) RelationshipUserBlock(userID string) (err error) {
+	err = s.relationshipCreate(userID, 2)
+	return
+}
+
+// RelationshipDelete removes the relationship with a user.
+// userID: ID of the user.
+func (s *Session) RelationshipDelete(userID string) (err error) {
+	_, err = s.RequestWithBucketID("DELETE", EndpointRelationship(userID), nil, EndpointRelationships())
+	return
+}
+
+// RelationshipsMutualGet returns an array of all the users both @me and the given user is friends with.
+// userID: ID of the user.
+func (s *Session) RelationshipsMutualGet(userID string) (mf []*User, err error) {
+	body, err := s.RequestWithBucketID("GET", EndpointRelationshipsMutual(userID), nil, EndpointRelationshipsMutual(userID))
+	if err != nil {
+		return
+	}
+
+	err = unmarshal(body, &mf)
 	return
 }
