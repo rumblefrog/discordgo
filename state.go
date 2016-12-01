@@ -69,7 +69,6 @@ func (s *State) GuildAdd(guild *Guild) error {
 
 	// Update the channels to point to the right guild, adding them to the channelMap as we go
 	for _, c := range guild.Channels {
-		c.GuildID = guild.ID
 		s.channelMap[c.ID] = c
 	}
 
@@ -716,7 +715,6 @@ func (s *State) onReady(se *Session, r *Ready) (err error) {
 		s.guildMap[g.ID] = g
 
 		for _, c := range g.Channels {
-			c.GuildID = g.ID
 			s.channelMap[c.ID] = c
 		}
 	}
@@ -885,7 +883,7 @@ func (s *State) UserChannelPermissions(userID, channelID string) (apermissions i
 		}
 	}
 
-	if apermissions&PermissionManageRoles > 0 {
+	if apermissions&PermissionAdministrator > 0 {
 		apermissions |= PermissionAllChannel
 	}
 

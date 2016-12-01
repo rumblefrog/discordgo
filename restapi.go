@@ -470,7 +470,7 @@ func (s *Session) UserChannelPermissions(userID, channelID string) (apermissions
 		}
 	}
 
-	if apermissions&PermissionManageRoles > 0 {
+	if apermissions&PermissionAdministrator > 0 {
 		apermissions |= PermissionAllChannel
 	}
 
@@ -729,6 +729,28 @@ func (s *Session) GuildMemberNickname(guildID, userID, nickname string) (err err
 	}{nickname}
 
 	_, err = s.RequestWithBucketID("PATCH", EndpointGuildMember(guildID, userID), data, EndpointGuildMember(guildID, ""))
+	return
+}
+
+// GuildMemberRoleAdd adds the specified role to a given member
+//  guildID   : The ID of a Guild.
+//  userID    : The ID of a User.
+//  roleID 	  : The ID of a Role to be assigned to the user.
+func (s *Session) GuildMemberRoleAdd(guildID, userID, roleID string) (err error) {
+
+	_, err = s.RequestWithBucketID("PUT", EndpointGuildMemberRole(guildID, userID, roleID), nil, EndpointGuildMemberRole(guildID, userID, roleID))
+
+	return
+}
+
+// GuildMemberRoleRemove removes the specified role to a given member
+//  guildID   : The ID of a Guild.
+//  userID    : The ID of a User.
+//  roleID 	  : The ID of a Role to be removed from the user.
+func (s *Session) GuildMemberRoleRemove(guildID, userID, roleID string) (err error) {
+
+	_, err = s.RequestWithBucketID("DELETE", EndpointGuildMemberRole(guildID, userID, roleID), nil, EndpointGuildMemberRole(guildID, userID, roleID))
+
 	return
 }
 
@@ -1559,6 +1581,13 @@ func (s *Session) Gateway() (gateway string, err error) {
 	}
 
 	gateway = temp.URL
+
+	// Ensure the gateway always has a trailing slash.
+	// MacOS will fail to connect if we add query params without a trailing slash on the base domain.
+	if !strings.HasSuffix(gateway, "/") {
+		gateway += "/"
+	}
+
 	return
 }
 
