@@ -479,6 +479,7 @@ func (s *Session) ChannelVoiceJoin(gID, cID string, mute, deaf bool) (voice *Voi
 
 	if voice == nil {
 		voice = &VoiceConnection{}
+		voice.Connected = make(chan bool)
 		s.VoiceConnections[gID] = voice
 	}
 

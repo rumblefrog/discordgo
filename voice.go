@@ -59,7 +59,7 @@ type VoiceConnection struct {
 	close chan struct{}
 
 	// Used to allow blocking until connected
-	connected chan bool
+	Connected chan bool
 
 	// Used to pass the sessionid from onVoiceStateUpdate
 	// sessionRecv chan string UNUSED ATM
@@ -410,7 +410,7 @@ func (v *VoiceConnection) onEvent(message []byte) {
 		}
 
 		// Send the ready event
-		v.connected <- true
+		v.Connected <- true
 		return
 
 	case 3: // HEARTBEAT response

@@ -868,6 +868,15 @@ func (s *State) UserChannelPermissions(userID, channelID string) (apermissions i
 		apermissions |= PermissionAll
 	}
 
+	// Role and member overwites overrides the everyone role, so check for everyone role overwrite first
+	for _, overwrite := range channel.PermissionOverwrites {
+		if overwrite.Type == "role" && overwrite.ID == guild.ID {
+			apermissions &= ^overwrite.Deny
+			apermissions |= overwrite.Allow
+			break
+		}
+	}
+
 	// Member overwrites can override role overrides, so do two passes
 	for _, overwrite := range channel.PermissionOverwrites {
 		for _, roleID := range member.Roles {
