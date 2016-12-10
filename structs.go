@@ -384,32 +384,6 @@ type FriendSourceFlags struct {
 	MutualFriends bool `json:"mutual_friends"`
 }
 
-// An Event provides a basic initial struct for all websocket event.
-// type Event struct {
-// 	Operation int             `json:"op"`
-// 	Sequence  int             `json:"s"`
-// 	Type      string          `json:"t"`
-// 	RawData   json.RawMessage `json:"d"`
-// 	Struct    interface{}     `json:"-"`
-// }
-
-// // A Ready stores all data for the websocket READY event.
-// type Ready struct {
-// 	Version           int           `json:"v"`
-// 	SessionID         string        `json:"session_id"`
-// 	HeartbeatInterval time.Duration `json:"heartbeat_interval"`
-// 	User              *SelfUser     `json:"user"`
-// 	ReadState         []*ReadState  `json:"read_state"`
-// 	PrivateChannels   []*Channel    `json:"private_channels"`
-// 	Guilds            []*Guild      `json:"guilds"`
-
-// 	// Undocumented fields
-// 	Settings          *Settings            `json:"user_settings"`
-// 	UserGuildSettings []*UserGuildSettings `json:"user_guild_settings"`
-// 	Relationships     []*Relationship      `json:"relationships"`
-// 	Presences         []*Presence          `json:"presences"`
-// }
-
 // A Relationship between the logged in user and Relationship.User
 type Relationship struct {
 	User *User  `json:"user"`
@@ -431,19 +405,6 @@ type ReadState struct {
 	LastMessageID string `json:"last_message_id"`
 	ID            string `json:"id"`
 }
-
-// // A TypingStart stores data for the typing start websocket event.
-// type TypingStart struct {
-// 	UserID    string `json:"user_id"`
-// 	ChannelID string `json:"channel_id"`
-// 	Timestamp int    `json:"timestamp"`
-// }
-
-// // A MessageAck stores data for the message ack websocket event.
-// type MessageAck struct {
-// 	MessageID string `json:"message_id"`
-// 	ChannelID string `json:"channel_id"`
-// }
 
 // An Ack is used to ack messages
 type Ack struct {

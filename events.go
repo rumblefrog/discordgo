@@ -40,7 +40,7 @@ type Ready struct {
 	Version           int           `json:"v"`
 	SessionID         string        `json:"session_id"`
 	HeartbeatInterval time.Duration `json:"heartbeat_interval"`
-	User              *User         `json:"user"`
+	User              *SelfUser     `json:"user"`
 	ReadState         []*ReadState  `json:"read_state"`
 	PrivateChannels   []*Channel    `json:"private_channels"`
 	Guilds            []*Guild      `json:"guilds"`
