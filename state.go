@@ -807,10 +807,10 @@ func (s *State) onInterface(se *Session, i interface{}) (err error) {
 		if s.MaxMessageCount != 0 {
 			err = s.MessageAdd(t.Message)
 		}
-	case *MessageDelete:
-		if s.MaxMessageCount != 0 {
-			err = s.MessageRemove(t.Message)
-		}
+	// case *MessageDelete:
+	// 	if s.MaxMessageCount != 0 {
+	// 		err = s.MessageRemove(t.Message)
+	// 	}
 	case *VoiceStateUpdate:
 		if s.TrackVoice {
 			err = s.voiceStateUpdate(t)
