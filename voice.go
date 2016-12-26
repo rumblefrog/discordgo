@@ -93,7 +93,7 @@ func (v *VoiceConnection) Speaking(b bool) (err error) {
 	}
 
 	if v.wsConn == nil {
-		return fmt.Errorf("No VoiceConnection websocket.")
+		return fmt.Errorf("no VoiceConnection websocket")
 	}
 
 	data := voiceSpeakingOp{5, voiceSpeakingData{b, 0}}
@@ -251,7 +251,7 @@ func (v *VoiceConnection) waitUntilConnected() error {
 		}
 
 		if i > 10 {
-			return fmt.Errorf("Timeout waiting for voice.")
+			return fmt.Errorf("timeout waiting for voice")
 		}
 
 		time.Sleep(1 * time.Second)
@@ -282,7 +282,7 @@ func (v *VoiceConnection) open() (err error) {
 			break
 		}
 		if i > 20 { // only loop for up to 1 second total
-			return fmt.Errorf("Did not receive voice Session ID in time.")
+			return fmt.Errorf("did not receive voice Session ID in time")
 		}
 		time.Sleep(50 * time.Millisecond)
 		i++
@@ -837,6 +837,8 @@ func (v *VoiceConnection) reconnect() {
 			return
 		}
 
+		v.log(LogInformational, "error reconnecting to channel %s, %s", v.ChannelID, err)
+
 		// if the reconnect above didn't work lets just send a disconnect
 		// packet to reset things.
 		// Send a OP4 with a nil channel to disconnect
@@ -848,6 +850,5 @@ func (v *VoiceConnection) reconnect() {
 			v.log(LogError, "error sending disconnect packet, %s", err)
 		}
 
-		v.log(LogInformational, "error reconnecting to channel %s, %s", v.ChannelID, err)
 	}
 }

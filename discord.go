@@ -13,10 +13,14 @@
 // Package discordgo provides Discord binding for Go
 package discordgo
 
-import "fmt"
+import (
+	"fmt"
+	"net/http"
+	"time"
+)
 
 // VERSION of Discordgo, follows Symantic Versioning. (http://semver.org/)
-const VERSION = "0.14.0-dev"
+const VERSION = "0.16.0-dev"
 
 // New creates a new Discord session and will automate some startup
 // tasks if given enough information to do so.  Currently you can pass zero
@@ -43,6 +47,7 @@ func New(args ...interface{}) (s *Session, err error) {
 		ShardID:                0,
 		ShardCount:             1,
 		MaxRestRetries:         3,
+		Client:                 &http.Client{Timeout: (20 * time.Second)},
 	}
 
 	// If no arguments are passed return the empty Session interface.
@@ -60,7 +65,7 @@ func New(args ...interface{}) (s *Session, err error) {
 
 		case []string:
 			if len(v) > 3 {
-				err = fmt.Errorf("Too many string parameters provided.")
+				err = fmt.Errorf("too many string parameters provided")
 				return
 			}
 
@@ -91,7 +96,7 @@ func New(args ...interface{}) (s *Session, err error) {
 			} else if s.Token == "" {
 				s.Token = v
 			} else {
-				err = fmt.Errorf("Too many string parameters provided.")
+				err = fmt.Errorf("too many string parameters provided")
 				return
 			}
 
@@ -99,7 +104,7 @@ func New(args ...interface{}) (s *Session, err error) {
 			// TODO: Parse configuration struct
 
 		default:
-			err = fmt.Errorf("Unsupported parameter type provided.")
+			err = fmt.Errorf("unsupported parameter type provided")
 			return
 		}
 	}

@@ -14,11 +14,12 @@ package discordgo
 
 import (
 	"errors"
+	"sort"
 	"sync"
 )
 
 // ErrNilState is returned when the state is nil.
-var ErrNilState = errors.New("State not instantiated, please use discordgo.New() or assign Session.State.")
+var ErrNilState = errors.New("state not instantiated, please use discordgo.New() or assign Session.State")
 
 // A State contains the current known state.
 // As discord sends this in a READY blob, it seems reasonable to simply
@@ -145,7 +146,7 @@ func (s *State) Guild(guildID string) (*Guild, error) {
 		return g, nil
 	}
 
-	return nil, errors.New("Guild not found.")
+	return nil, errors.New("guild not found")
 }
 
 // TODO: Consider moving Guild state update methods onto *Guild.
@@ -207,7 +208,7 @@ func (s *State) MemberRemove(member *Member) error {
 		}
 	}
 
-	return errors.New("Member not found.")
+	return errors.New("member not found")
 }
 
 // Member gets a member by ID from a guild.
@@ -230,7 +231,7 @@ func (s *State) Member(guildID, userID string) (*Member, error) {
 		}
 	}
 
-	return nil, errors.New("Member not found.")
+	return nil, errors.New("member not found")
 }
 
 // PresenceAdd adds a presence to the current world state, or
@@ -362,7 +363,7 @@ func (s *State) RoleRemove(guildID, roleID string) error {
 		}
 	}
 
-	return errors.New("Role not found.")
+	return errors.New("role not found")
 }
 
 // Role gets a role by ID from a guild.
@@ -385,7 +386,7 @@ func (s *State) Role(guildID, roleID string) (*Role, error) {
 		}
 	}
 
-	return nil, errors.New("Role not found.")
+	return nil, errors.New("role not found")
 }
 
 // ChannelAdd adds a guild to the current world state, or
@@ -418,7 +419,7 @@ func (s *State) ChannelAdd(channel *Channel) error {
 	} else {
 		guild, ok := s.guildMap[channel.GuildID]
 		if !ok {
-			return errors.New("Guild for channel not found.")
+			return errors.New("guild for channel not found")
 		}
 
 		guild.Channels = append(guild.Channels, channel)
@@ -497,7 +498,7 @@ func (s *State) Channel(channelID string) (*Channel, error) {
 		return c, nil
 	}
 
-	return nil, errors.New("Channel not found.")
+	return nil, errors.New("channel not found")
 }
 
 // Emoji returns an emoji for a guild and emoji id.
@@ -520,7 +521,7 @@ func (s *State) Emoji(guildID, emojiID string) (*Emoji, error) {
 		}
 	}
 
-	return nil, errors.New("Emoji not found.")
+	return nil, errors.New("emoji not found")
 }
 
 // EmojiAdd adds an emoji to the current world state.
@@ -632,7 +633,7 @@ func (s *State) MessageRemove(message *Message) error {
 		}
 	}
 
-	return errors.New("Message not found.")
+	return errors.New("message not found")
 }
 
 func (s *State) voiceStateUpdate(update *VoiceStateUpdate) error {
@@ -686,7 +687,7 @@ func (s *State) Message(channelID, messageID string) (*Message, error) {
 		}
 	}
 
-	return nil, errors.New("Message not found.")
+	return nil, errors.New("message not found")
 }
 
 // OnReady takes a Ready event and updates all internal state.
@@ -702,10 +703,9 @@ func (s *State) onReady(se *Session, r *Ready) (err error) {
 	// if state is disabled, store the bare essentials.
 	if !se.StateEnabled {
 		ready := Ready{
-			Version:           r.Version,
-			SessionID:         r.SessionID,
-			HeartbeatInterval: r.HeartbeatInterval,
-			User:              r.User,
+			Version:   r.Version,
+			SessionID: r.SessionID,
+			User:      r.User,
 		}
 
 		s.Ready = ready
@@ -848,57 +848,46 @@ func (s *State) UserChannelPermissions(userID, channelID string) (apermissions i
 		return
 	}
 
-	for _, role := range guild.Roles {
-		if role.ID == guild.ID {
-			apermissions |= role.Permissions
-			break
-		}
+	return memberPermissions(guild, channel, member), nil
+}
+
+// UserColor returns the color of a user in a channel.
+// While colors are defined at a Guild level, determining for a channel is more useful in message handlers.
+// 0 is returned in cases of error, which is the color of @everyone.
+// userID    : The ID of the user to calculate the color for.
+// channelID   : The ID of the channel to calculate the color for.
+func (s *State) UserColor(userID, channelID string) int {
+	if s == nil {
+		return 0
 	}
 
-	for _, role := range guild.Roles {
+	channel, err := s.Channel(channelID)
+	if err != nil {
+		return 0
+	}
+
+	guild, err := s.Guild(channel.GuildID)
+	if err != nil {
+		return 0
+	}
+
+	member, err := s.Member(guild.ID, userID)
+	if err != nil {
+		return 0
+	}
+
+	roles := Roles(guild.Roles)
+	sort.Sort(roles)
+
+	for _, role := range roles {
 		for _, roleID := range member.Roles {
 			if role.ID == roleID {
-				apermissions |= role.Permissions
-				break
+				if role.Color != 0 {
+					return role.Color
+				}
 			}
 		}
 	}
 
-	if apermissions&PermissionAdministrator > 0 {
-		apermissions |= PermissionAll
-	}
-
-	// Role and member overwites overrides the everyone role, so check for everyone role overwrite first
-	for _, overwrite := range channel.PermissionOverwrites {
-		if overwrite.Type == "role" && overwrite.ID == guild.ID {
-			apermissions &= ^overwrite.Deny
-			apermissions |= overwrite.Allow
-			break
-		}
-	}
-
-	// Member overwrites can override role overrides, so do two passes
-	for _, overwrite := range channel.PermissionOverwrites {
-		for _, roleID := range member.Roles {
-			if overwrite.Type == "role" && roleID == overwrite.ID {
-				apermissions &= ^overwrite.Deny
-				apermissions |= overwrite.Allow
-				break
-			}
-		}
-	}
-
-	for _, overwrite := range channel.PermissionOverwrites {
-		if overwrite.Type == "member" && overwrite.ID == userID {
-			apermissions &= ^overwrite.Deny
-			apermissions |= overwrite.Allow
-			break
-		}
-	}
-
-	if apermissions&PermissionAdministrator > 0 {
-		apermissions |= PermissionAllChannel
-	}
-
-	return
+	return 0
 }
