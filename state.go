@@ -34,7 +34,6 @@ type State struct {
 	TrackMembers    bool
 	TrackRoles      bool
 	TrackVoice      bool
-	TrackPresences  bool
 
 	guildMap   map[string]*Guild
 	channelMap map[string]*Channel
@@ -47,14 +46,13 @@ func NewState() *State {
 			PrivateChannels: []*Channel{},
 			Guilds:          []*Guild{},
 		},
-		TrackChannels:  true,
-		TrackEmojis:    true,
-		TrackMembers:   true,
-		TrackRoles:     true,
-		TrackVoice:     true,
-		TrackPresences: true,
-		guildMap:       make(map[string]*Guild),
-		channelMap:     make(map[string]*Channel),
+		TrackChannels: true,
+		TrackEmojis:   true,
+		TrackMembers:  true,
+		TrackRoles:    true,
+		TrackVoice:    true,
+		guildMap:      make(map[string]*Guild),
+		channelMap:    make(map[string]*Channel),
 	}
 }
 
@@ -166,19 +164,9 @@ func (s *State) MemberAdd(member *Member) error {
 	s.Lock()
 	defer s.Unlock()
 
-	for _, m := range guild.Members {
+	for i, m := range guild.Members {
 		if m.User.ID == member.User.ID {
-			if member.JoinedAt != "" {
-				m.JoinedAt = member.JoinedAt
-			}
-			if member.Roles != nil {
-				m.Roles = member.Roles
-			}
-
-			// Seems to always be provided
-			m.Nick = member.Nick
-			m.User = member.User
-
+			guild.Members[i] = member
 			return nil
 		}
 	}
@@ -232,88 +220,6 @@ func (s *State) Member(guildID, userID string) (*Member, error) {
 	}
 
 	return nil, errors.New("member not found")
-}
-
-// PresenceAdd adds a presence to the current world state, or
-// updates it if it already exists.
-func (s *State) PresenceAdd(guildID string, presence *Presence) error {
-	if s == nil {
-		return ErrNilState
-	}
-
-	guild, err := s.Guild(guildID)
-	if err != nil {
-		return err
-	}
-
-	s.Lock()
-	defer s.Unlock()
-
-	for _, p := range guild.Presences {
-		if p.User.ID == presence.User.ID {
-
-			p.Game = presence.Game
-
-			if presence.Roles != nil {
-				p.Roles = presence.Roles
-			}
-			if presence.Status != "" {
-				p.Status = presence.Status
-			}
-
-			return nil
-		}
-	}
-
-	guild.Presences = append(guild.Presences, presence)
-	return nil
-}
-
-// PresenceRemove removes a member from current world state.
-func (s *State) PresenceRemove(guildID, userID string) error {
-	if s == nil {
-		return ErrNilState
-	}
-
-	guild, err := s.Guild(guildID)
-	if err != nil {
-		return err
-	}
-
-	s.Lock()
-	defer s.Unlock()
-
-	for i, m := range guild.Presences {
-		if m.User.ID == userID {
-			guild.Presences = append(guild.Presences[:i], guild.Presences[i+1:]...)
-			return nil
-		}
-	}
-
-	return errors.New("User not found.")
-}
-
-// Presence gets a presnce by user ID from a guild.
-func (s *State) Presence(guildID, userID string) (*Presence, error) {
-	if s == nil {
-		return nil, ErrNilState
-	}
-
-	guild, err := s.Guild(guildID)
-	if err != nil {
-		return nil, err
-	}
-
-	s.Lock()
-	defer s.Unlock()
-
-	for _, p := range guild.Presences {
-		if p.User.ID == userID {
-			return p, nil
-		}
-	}
-
-	return nil, errors.New("User not found.")
 }
 
 // RoleAdd adds a role to the current world state, or
@@ -618,7 +524,12 @@ func (s *State) MessageRemove(message *Message) error {
 		return ErrNilState
 	}
 
-	c, err := s.Channel(message.ChannelID)
+	return s.messageRemoveByID(message.ChannelID, message.ID)
+}
+
+// messageRemoveByID removes a message by channelID and messageID from the world state.
+func (s *State) messageRemoveByID(channelID, messageID string) error {
+	c, err := s.Channel(channelID)
 	if err != nil {
 		return err
 	}
@@ -627,7 +538,7 @@ func (s *State) MessageRemove(message *Message) error {
 	defer s.Unlock()
 
 	for i, m := range c.Messages {
-		if m.ID == message.ID {
+		if m.ID == messageID {
 			c.Messages = append(c.Messages[:i], c.Messages[i+1:]...)
 			return nil
 		}
@@ -764,13 +675,6 @@ func (s *State) onInterface(se *Session, i interface{}) (err error) {
 		if s.TrackMembers {
 			err = s.MemberRemove(t.Member)
 		}
-		if s.TrackPresences {
-			err = s.PresenceRemove(t.GuildID, t.Member.User.ID)
-		}
-	case *PresenceUpdate:
-		if s.TrackPresences {
-			err = s.PresenceAdd(t.GuildID, &t.Presence)
-		}
 	case *GuildRoleCreate:
 		if s.TrackRoles {
 			err = s.RoleAdd(t.GuildID, t.Role)
@@ -807,10 +711,16 @@ func (s *State) onInterface(se *Session, i interface{}) (err error) {
 		if s.MaxMessageCount != 0 {
 			err = s.MessageAdd(t.Message)
 		}
-	// case *MessageDelete:
-	// 	if s.MaxMessageCount != 0 {
-	// 		err = s.MessageRemove(t.Message)
-	// 	}
+	case *MessageDelete:
+		if s.MaxMessageCount != 0 {
+			err = s.MessageRemove(t.Message)
+		}
+	case *MessageDeleteBulk:
+		if s.MaxMessageCount != 0 {
+			for _, mID := range t.Messages {
+				s.messageRemoveByID(t.ChannelID, mID)
+			}
+		}
 	case *VoiceStateUpdate:
 		if s.TrackVoice {
 			err = s.voiceStateUpdate(t)

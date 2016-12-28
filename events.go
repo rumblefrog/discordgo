@@ -27,7 +27,7 @@ type RateLimit struct {
 // Event provides a basic initial struct for all websocket events.
 type Event struct {
 	Operation int             `json:"op"`
-	Sequence  int             `json:"s"`
+	Sequence  int64           `json:"s"`
 	Type      string          `json:"t"`
 	RawData   json.RawMessage `json:"d"`
 	// Struct contains one of the other types in this file.
@@ -232,4 +232,10 @@ type VoiceServerUpdate struct {
 // VoiceStateUpdate is the data for a VoiceStateUpdate event.
 type VoiceStateUpdate struct {
 	*VoiceState
+}
+
+// MessageDeleteBulk is the data for a MessageDeleteBulk event
+type MessageDeleteBulk struct {
+	Messages  []string `json:"ids"`
+	ChannelID string   `json:"channel_id"`
 }
