@@ -527,6 +527,7 @@ func (s *Session) onVoiceStateUpdate(st *VoiceStateUpdate) {
 	// Check if we have a voice connection to update
 	s.RLock()
 	voice, exists := s.VoiceConnections[st.GuildID]
+	s.RUnlock()
 	if !exists {
 		return
 	}
