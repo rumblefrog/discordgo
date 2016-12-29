@@ -531,7 +531,6 @@ func (s *Session) onVoiceStateUpdate(st *VoiceStateUpdate) {
 	if !exists {
 		return
 	}
-	s.RUnlock()
 
 	// We only care about events that are about us.
 	if s.State.User.ID != st.UserID {
