@@ -475,18 +475,26 @@ func (s *Session) ChannelVoiceJoin(gID, cID string, mute, deaf bool) (voice *Voi
 
 	s.log(LogInformational, "called")
 
+	s.RLock()
 	voice, _ = s.VoiceConnections[gID]
+	s.RUnlock()
 
 	if voice == nil {
-		voice = &VoiceConnection{}
+		voice = &VoiceConnection{
+			Connected: make(chan bool),
+		}
+		s.Lock()
 		s.VoiceConnections[gID] = voice
+		s.Unlock()
 	}
 
+	voice.Lock()
 	voice.GuildID = gID
 	voice.ChannelID = cID
 	voice.deaf = deaf
 	voice.mute = mute
 	voice.session = s
+	voice.Unlock()
 
 	// Send the request to Discord that we want to join the voice channel
 	data := voiceChannelJoinOp{4, voiceChannelJoinData{&gID, &cID, mute, deaf}}
@@ -517,7 +525,9 @@ func (s *Session) onVoiceStateUpdate(st *VoiceStateUpdate) {
 	}
 
 	// Check if we have a voice connection to update
+	s.RLock()
 	voice, exists := s.VoiceConnections[st.GuildID]
+	s.RUnlock()
 	if !exists {
 		return
 	}
@@ -528,8 +538,10 @@ func (s *Session) onVoiceStateUpdate(st *VoiceStateUpdate) {
 	}
 
 	// Store the SessionID for later use.
+	voice.Lock()
 	voice.UserID = st.UserID
 	voice.sessionID = st.SessionID
+	voice.Unlock()
 }
 
 // onVoiceServerUpdate handles the Voice Server Update data websocket event.
@@ -541,7 +553,9 @@ func (s *Session) onVoiceServerUpdate(st *VoiceServerUpdate) {
 
 	s.log(LogInformational, "called")
 
+	s.RLock()
 	voice, exists := s.VoiceConnections[st.GuildID]
+	s.RUnlock()
 
 	// If no VoiceConnection exists, just skip this
 	if !exists {
@@ -553,9 +567,11 @@ func (s *Session) onVoiceServerUpdate(st *VoiceServerUpdate) {
 	voice.Close()
 
 	// Store values for later use
+	voice.Lock()
 	voice.token = st.Token
 	voice.endpoint = st.Endpoint
 	voice.GuildID = st.GuildID
+	voice.Unlock()
 
 	// Open a conenction to the voice server
 	err := voice.open()
@@ -645,6 +661,8 @@ func (s *Session) reconnect() {
 				// However, there seems to be cases where something "weird"
 				// happens.  So we're doing this for now just to improve
 				// stability in those edge cases.
+				s.RLock()
+				defer s.RUnlock()
 				for _, v := range s.VoiceConnections {
 
 					s.log(LogInformational, "reconnecting voice connection to guild %s", v.GuildID)
