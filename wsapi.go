@@ -710,7 +710,9 @@ func (s *Session) Close() (err error) {
 		s.log(LogInformational, "sending close frame")
 		// To cleanly close a connection, a client should send a close
 		// frame and wait for the server to close the connection.
+		s.wsMutex.Lock()
 		err := s.wsConn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+		s.wsMutex.Unlock()
 		if err != nil {
 			s.log(LogInformational, "error closing websocket, %s", err)
 		}
