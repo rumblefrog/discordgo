@@ -100,11 +100,15 @@ func (v *VoiceConnection) Speaking(b bool) (err error) {
 	v.wsMutex.Lock()
 	err = v.wsConn.WriteJSON(data)
 	v.wsMutex.Unlock()
+
+	v.Lock()
+	defer v.Unlock()
 	if err != nil {
 		v.speaking = false
 		log.Println("Speaking() write json error:", err)
 		return
 	}
+
 	v.speaking = b
 
 	return
@@ -695,7 +699,10 @@ func (v *VoiceConnection) opusSender(udpConn *net.UDPConn, close <-chan struct{}
 			// else, continue loop
 		}
 
-		if !v.speaking {
+		v.RLock()
+		speaking := v.speaking
+		v.RUnlock()
+		if !speaking {
 			err := v.Speaking(true)
 			if err != nil {
 				v.log(LogError, "error sending speaking packet, %s", err)
