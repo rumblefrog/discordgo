@@ -413,6 +413,11 @@ func (s *Session) onEvent(messageType int, message []byte) {
 		return
 	}
 
+	// Heartbeart ack
+	if e.Operation == 11 {
+		return
+	}
+
 	// Do not try to Dispatch a non-Dispatch Message
 	if e.Operation != 0 {
 		// But we probably should be doing something with them.
