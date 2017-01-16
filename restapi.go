@@ -792,7 +792,7 @@ func (s *Session) GuildMemberNickname(guildID, userID, nickname string) (err err
 //  roleID 	  : The ID of a Role to be assigned to the user.
 func (s *Session) GuildMemberRoleAdd(guildID, userID, roleID string) (err error) {
 
-	_, err = s.RequestWithBucketID("PUT", EndpointGuildMemberRole(guildID, userID, roleID), nil, EndpointGuildMemberRole(guildID, userID, roleID))
+	_, err = s.RequestWithBucketID("PUT", EndpointGuildMemberRole(guildID, userID, roleID), nil, EndpointGuildMemberRole(guildID, "", ""))
 
 	return
 }
@@ -803,7 +803,7 @@ func (s *Session) GuildMemberRoleAdd(guildID, userID, roleID string) (err error)
 //  roleID 	  : The ID of a Role to be removed from the user.
 func (s *Session) GuildMemberRoleRemove(guildID, userID, roleID string) (err error) {
 
-	_, err = s.RequestWithBucketID("DELETE", EndpointGuildMemberRole(guildID, userID, roleID), nil, EndpointGuildMemberRole(guildID, userID, roleID))
+	_, err = s.RequestWithBucketID("DELETE", EndpointGuildMemberRole(guildID, userID, roleID), nil, EndpointGuildMemberRole(guildID, "", ""))
 
 	return
 }
@@ -1210,7 +1210,8 @@ func (s *Session) ChannelTyping(channelID string) (err error) {
 // limit     : The number messages that can be returned. (max 100)
 // beforeID  : If provided all messages returned will be before given ID.
 // afterID   : If provided all messages returned will be after given ID.
-func (s *Session) ChannelMessages(channelID string, limit int, beforeID, afterID string) (st []*Message, err error) {
+// aroundID  : If provided all messages returned will be around given ID.
+func (s *Session) ChannelMessages(channelID string, limit int, beforeID, afterID, aroundID string) (st []*Message, err error) {
 
 	uri := EndpointChannelMessages(channelID)
 
@@ -1223,6 +1224,9 @@ func (s *Session) ChannelMessages(channelID string, limit int, beforeID, afterID
 	}
 	if beforeID != "" {
 		v.Set("before", beforeID)
+	}
+	if aroundID != "" {
+		v.Set("around", aroundID)
 	}
 	if len(v) > 0 {
 		uri = fmt.Sprintf("%s?%s", uri, v.Encode())
