@@ -407,6 +407,7 @@ func (v *VoiceConnection) wsHeartbeat(wsConn *websocket.Conn, close <-chan struc
 
 	var err error
 	ticker := time.NewTicker(i * time.Millisecond)
+	defer ticker.Stop()
 	for {
 		err = wsConn.WriteJSON(voiceHeartbeatOp{3, int(time.Now().Unix())})
 		if err != nil {
@@ -553,6 +554,7 @@ func (v *VoiceConnection) udpKeepAlive(udpConn *net.UDPConn, close <-chan struct
 	packet := make([]byte, 8)
 
 	ticker := time.NewTicker(i)
+	defer ticker.Stop()
 	for {
 
 		binary.LittleEndian.PutUint64(packet, sequence)
@@ -602,6 +604,7 @@ func (v *VoiceConnection) opusSender(udpConn *net.UDPConn, close <-chan struct{}
 
 	// start a send loop that loops until buf chan is closed
 	ticker := time.NewTicker(time.Millisecond * time.Duration(size/(rate/1000)))
+	defer ticker.Stop()
 	for {
 
 		// Get data from chan.  If chan is closed, return.
