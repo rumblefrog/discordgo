@@ -7,47 +7,49 @@ package discordgo
 // Event type values are used to match the events returned by Discord.
 // EventTypes surrounded by __ are synthetic and are internal to DiscordGo.
 const (
-	channelCreateEventType           = "CHANNEL_CREATE"
-	channelDeleteEventType           = "CHANNEL_DELETE"
-	channelPinsUpdateEventType       = "CHANNEL_PINS_UPDATE"
-	channelUpdateEventType           = "CHANNEL_UPDATE"
-	connectEventType                 = "__CONNECT__"
-	disconnectEventType              = "__DISCONNECT__"
-	eventEventType                   = "__EVENT__"
-	guildBanAddEventType             = "GUILD_BAN_ADD"
-	guildBanRemoveEventType          = "GUILD_BAN_REMOVE"
-	guildCreateEventType             = "GUILD_CREATE"
-	guildDeleteEventType             = "GUILD_DELETE"
-	guildEmojisUpdateEventType       = "GUILD_EMOJIS_UPDATE"
-	guildIntegrationsUpdateEventType = "GUILD_INTEGRATIONS_UPDATE"
-	guildMemberAddEventType          = "GUILD_MEMBER_ADD"
-	guildMemberRemoveEventType       = "GUILD_MEMBER_REMOVE"
-	guildMemberUpdateEventType       = "GUILD_MEMBER_UPDATE"
-	guildMembersChunkEventType       = "GUILD_MEMBERS_CHUNK"
-	guildRoleCreateEventType         = "GUILD_ROLE_CREATE"
-	guildRoleDeleteEventType         = "GUILD_ROLE_DELETE"
-	guildRoleUpdateEventType         = "GUILD_ROLE_UPDATE"
-	guildUpdateEventType             = "GUILD_UPDATE"
-	messageAckEventType              = "MESSAGE_ACK"
-	messageCreateEventType           = "MESSAGE_CREATE"
-	messageDeleteEventType           = "MESSAGE_DELETE"
-	messageDeleteBulkEventType       = "MESSAGE_DELETE_BULK"
-	messageReactionAddEventType      = "MESSAGE_REACTION_ADD"
-	messageReactionRemoveEventType   = "MESSAGE_REACTION_REMOVE"
-	messageUpdateEventType           = "MESSAGE_UPDATE"
-	presenceUpdateEventType          = "PRESENCE_UPDATE"
-	presencesReplaceEventType        = "PRESENCES_REPLACE"
-	rateLimitEventType               = "__RATE_LIMIT__"
-	readyEventType                   = "READY"
-	relationshipAddEventType         = "RELATIONSHIP_ADD"
-	relationshipRemoveEventType      = "RELATIONSHIP_REMOVE"
-	resumedEventType                 = "RESUMED"
-	typingStartEventType             = "TYPING_START"
-	userGuildSettingsUpdateEventType = "USER_GUILD_SETTINGS_UPDATE"
-	userSettingsUpdateEventType      = "USER_SETTINGS_UPDATE"
-	userUpdateEventType              = "USER_UPDATE"
-	voiceServerUpdateEventType       = "VOICE_SERVER_UPDATE"
-	voiceStateUpdateEventType        = "VOICE_STATE_UPDATE"
+	channelCreateEventType            = "CHANNEL_CREATE"
+	channelDeleteEventType            = "CHANNEL_DELETE"
+	channelPinsUpdateEventType        = "CHANNEL_PINS_UPDATE"
+	channelUpdateEventType            = "CHANNEL_UPDATE"
+	connectEventType                  = "__CONNECT__"
+	disconnectEventType               = "__DISCONNECT__"
+	eventEventType                    = "__EVENT__"
+	guildBanAddEventType              = "GUILD_BAN_ADD"
+	guildBanRemoveEventType           = "GUILD_BAN_REMOVE"
+	guildCreateEventType              = "GUILD_CREATE"
+	guildDeleteEventType              = "GUILD_DELETE"
+	guildEmojisUpdateEventType        = "GUILD_EMOJIS_UPDATE"
+	guildIntegrationsUpdateEventType  = "GUILD_INTEGRATIONS_UPDATE"
+	guildMemberAddEventType           = "GUILD_MEMBER_ADD"
+	guildMemberRemoveEventType        = "GUILD_MEMBER_REMOVE"
+	guildMemberUpdateEventType        = "GUILD_MEMBER_UPDATE"
+	guildMembersChunkEventType        = "GUILD_MEMBERS_CHUNK"
+	guildRoleCreateEventType          = "GUILD_ROLE_CREATE"
+	guildRoleDeleteEventType          = "GUILD_ROLE_DELETE"
+	guildRoleUpdateEventType          = "GUILD_ROLE_UPDATE"
+	guildUpdateEventType              = "GUILD_UPDATE"
+	messageAckEventType               = "MESSAGE_ACK"
+	messageCreateEventType            = "MESSAGE_CREATE"
+	messageDeleteEventType            = "MESSAGE_DELETE"
+	messageDeleteBulkEventType        = "MESSAGE_DELETE_BULK"
+	messageReactionAddEventType       = "MESSAGE_REACTION_ADD"
+	messageReactionRemoveEventType    = "MESSAGE_REACTION_REMOVE"
+	messageReactionRemoveAllEventType = "MESSAGE_REACTION_REMOVE_ALL"
+	messageUpdateEventType            = "MESSAGE_UPDATE"
+	presenceUpdateEventType           = "PRESENCE_UPDATE"
+	presencesReplaceEventType         = "PRESENCES_REPLACE"
+	rateLimitEventType                = "__RATE_LIMIT__"
+	readyEventType                    = "READY"
+	relationshipAddEventType          = "RELATIONSHIP_ADD"
+	relationshipRemoveEventType       = "RELATIONSHIP_REMOVE"
+	resumedEventType                  = "RESUMED"
+	typingStartEventType              = "TYPING_START"
+	userGuildSettingsUpdateEventType  = "USER_GUILD_SETTINGS_UPDATE"
+	userNoteUpdateEventType           = "USER_NOTE_UPDATE"
+	userSettingsUpdateEventType       = "USER_SETTINGS_UPDATE"
+	userUpdateEventType               = "USER_UPDATE"
+	voiceServerUpdateEventType        = "VOICE_SERVER_UPDATE"
+	voiceStateUpdateEventType         = "VOICE_STATE_UPDATE"
 )
 
 // channelCreateEventHandler is an event handler for ChannelCreate events.
@@ -575,6 +577,26 @@ func (eh messageReactionRemoveEventHandler) Handle(s *Session, i interface{}) {
 	}
 }
 
+// messageReactionRemoveAllEventHandler is an event handler for MessageReactionRemoveAll events.
+type messageReactionRemoveAllEventHandler func(*Session, *MessageReactionRemoveAll)
+
+// Type returns the event type for MessageReactionRemoveAll events.
+func (eh messageReactionRemoveAllEventHandler) Type() string {
+	return messageReactionRemoveAllEventType
+}
+
+// New returns a new instance of MessageReactionRemoveAll.
+func (eh messageReactionRemoveAllEventHandler) New() interface{} {
+	return &MessageReactionRemoveAll{}
+}
+
+// Handle is the handler for MessageReactionRemoveAll events.
+func (eh messageReactionRemoveAllEventHandler) Handle(s *Session, i interface{}) {
+	if t, ok := i.(*MessageReactionRemoveAll); ok {
+		eh(s, t)
+	}
+}
+
 // messageUpdateEventHandler is an event handler for MessageUpdate events.
 type messageUpdateEventHandler func(*Session, *MessageUpdate)
 
@@ -770,6 +792,26 @@ func (eh userGuildSettingsUpdateEventHandler) Handle(s *Session, i interface{}) 
 	}
 }
 
+// userNoteUpdateEventHandler is an event handler for UserNoteUpdate events.
+type userNoteUpdateEventHandler func(*Session, *UserNoteUpdate)
+
+// Type returns the event type for UserNoteUpdate events.
+func (eh userNoteUpdateEventHandler) Type() string {
+	return userNoteUpdateEventType
+}
+
+// New returns a new instance of UserNoteUpdate.
+func (eh userNoteUpdateEventHandler) New() interface{} {
+	return &UserNoteUpdate{}
+}
+
+// Handle is the handler for UserNoteUpdate events.
+func (eh userNoteUpdateEventHandler) Handle(s *Session, i interface{}) {
+	if t, ok := i.(*UserNoteUpdate); ok {
+		eh(s, t)
+	}
+}
+
 // userSettingsUpdateEventHandler is an event handler for UserSettingsUpdate events.
 type userSettingsUpdateEventHandler func(*Session, *UserSettingsUpdate)
 
@@ -908,6 +950,8 @@ func handlerForInterface(handler interface{}) EventHandler {
 		return messageReactionAddEventHandler(v)
 	case func(*Session, *MessageReactionRemove):
 		return messageReactionRemoveEventHandler(v)
+	case func(*Session, *MessageReactionRemoveAll):
+		return messageReactionRemoveAllEventHandler(v)
 	case func(*Session, *MessageUpdate):
 		return messageUpdateEventHandler(v)
 	case func(*Session, *PresenceUpdate):
@@ -928,6 +972,8 @@ func handlerForInterface(handler interface{}) EventHandler {
 		return typingStartEventHandler(v)
 	case func(*Session, *UserGuildSettingsUpdate):
 		return userGuildSettingsUpdateEventHandler(v)
+	case func(*Session, *UserNoteUpdate):
+		return userNoteUpdateEventHandler(v)
 	case func(*Session, *UserSettingsUpdate):
 		return userSettingsUpdateEventHandler(v)
 	case func(*Session, *UserUpdate):
@@ -966,6 +1012,7 @@ func init() {
 	registerInterfaceProvider(messageDeleteBulkEventHandler(nil))
 	registerInterfaceProvider(messageReactionAddEventHandler(nil))
 	registerInterfaceProvider(messageReactionRemoveEventHandler(nil))
+	registerInterfaceProvider(messageReactionRemoveAllEventHandler(nil))
 	registerInterfaceProvider(messageUpdateEventHandler(nil))
 	registerInterfaceProvider(presenceUpdateEventHandler(nil))
 	registerInterfaceProvider(presencesReplaceEventHandler(nil))
@@ -975,6 +1022,7 @@ func init() {
 	registerInterfaceProvider(resumedEventHandler(nil))
 	registerInterfaceProvider(typingStartEventHandler(nil))
 	registerInterfaceProvider(userGuildSettingsUpdateEventHandler(nil))
+	registerInterfaceProvider(userNoteUpdateEventHandler(nil))
 	registerInterfaceProvider(userSettingsUpdateEventHandler(nil))
 	registerInterfaceProvider(userUpdateEventHandler(nil))
 	registerInterfaceProvider(voiceServerUpdateEventHandler(nil))

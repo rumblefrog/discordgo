@@ -31,6 +31,46 @@ type Message struct {
 	Reactions       []*MessageReactions  `json:"reactions"`
 }
 
+// MessageSend stores all parameters you can send with ChannelMessageSendComplex.
+type MessageSend struct {
+	Content string        `json:"content,omitempty"`
+	Embed   *MessageEmbed `json:"embed,omitempty"`
+	Tts     bool          `json:"tts"`
+}
+
+// MessageEdit is used to chain parameters via ChannelMessageEditComplex, which
+// is also where you should get the instance from.
+type MessageEdit struct {
+	Content *string       `json:"content,omitempty"`
+	Embed   *MessageEmbed `json:"embed,omitempty"`
+
+	ID      string
+	Channel string
+}
+
+// NewMessageEdit returns a MessageEdit struct, initialized
+// with the Channel and ID.
+func NewMessageEdit(channelID string, messageID string) *MessageEdit {
+	return &MessageEdit{
+		Channel: channelID,
+		ID:      messageID,
+	}
+}
+
+// SetContent is the same as setting the variable Content,
+// except it doesn't take a pointer.
+func (m *MessageEdit) SetContent(str string) *MessageEdit {
+	m.Content = &str
+	return m
+}
+
+// SetEmbed is a convenience function for setting the embed,
+// so you can chain commands.
+func (m *MessageEdit) SetEmbed(embed *MessageEmbed) *MessageEdit {
+	m.Embed = embed
+	return m
+}
+
 // A MessageAttachment stores data for message attachments.
 type MessageAttachment struct {
 	ID       string `json:"id"`

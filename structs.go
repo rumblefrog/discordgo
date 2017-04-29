@@ -29,6 +29,7 @@ type Session struct {
 
 	// Authentication token for this session
 	Token string
+	MFA   bool
 
 	// Debug for printing JSON request/responses
 	Debug    bool // Deprecated, will be removed.
@@ -235,9 +236,15 @@ type UserGuild struct {
 
 // A GuildParams stores all the data needed to update discord guild settings
 type GuildParams struct {
-	Name              string             `json:"name"`
-	Region            string             `json:"region"`
-	VerificationLevel *VerificationLevel `json:"verification_level"`
+	Name                        string             `json:"name,omitempty"`
+	Region                      string             `json:"region,omitempty"`
+	VerificationLevel           *VerificationLevel `json:"verification_level,omitempty"`
+	DefaultMessageNotifications int                `json:"default_message_notifications,omitempty"` // TODO: Separate type?
+	AfkChannelID                string             `json:"afk_channel_id,omitempty"`
+	AfkTimeout                  int                `json:"afk_timeout,omitempty"`
+	Icon                        string             `json:"icon,omitempty"`
+	OwnerID                     string             `json:"owner_id,omitempty"`
+	Splash                      string             `json:"splash,omitempty"`
 }
 
 // A Role stores information about Discord guild member roles.
@@ -338,25 +345,6 @@ type Member struct {
 	Mute     bool     `json:"mute"`
 	User     *User    `json:"user"`
 	Roles    []string `json:"roles"`
-}
-
-// A User stores all data for an individual Discord user.
-type User struct {
-	ID            string `json:"id"`
-	Email         string `json:"email"`
-	Username      string `json:"username"`
-	Avatar        string `json:"Avatar"`
-	Discriminator string `json:"discriminator"`
-	Bot           bool   `json:"bot"`
-	MFAEnabled    bool   `json:"mfa_enabled"`
-	Verified      bool   `json:"verified"`
-}
-
-// A SelfUser stores user data about the token owner.
-// Includes a few extra fields than a normal user struct.
-type SelfUser struct {
-	*User
-	Token string `json:"token"`
 }
 
 // A Settings stores data for a specific users Discord client settings.

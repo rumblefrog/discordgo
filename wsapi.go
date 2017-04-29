@@ -547,6 +547,7 @@ func (s *Session) onVoiceStateUpdate(st *VoiceStateUpdate) {
 	voice.Lock()
 	voice.UserID = st.UserID
 	voice.sessionID = st.SessionID
+	voice.ChannelID = st.ChannelID
 	voice.Unlock()
 }
 
