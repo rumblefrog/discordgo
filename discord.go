@@ -20,8 +20,8 @@ import (
 	"time"
 )
 
-// VERSION of Discordgo, follows Symantic Versioning. (http://semver.org/)
-const VERSION = "0.16.0-dev"
+// VERSION of DiscordGo, follows Semantic Versioning. (http://semver.org/)
+const VERSION = "0.17.0-dev"
 
 // ErrMFA will be risen by New when the user has 2FA.
 var ErrMFA = errors.New("account has 2FA enabled")
@@ -39,6 +39,12 @@ var ErrMFA = errors.New("account has 2FA enabled")
 //     With an email, password and auth token - Discord will verify the auth
 //         token, if it is invalid it will sign in with the provided
 //         credentials. This is the Discord recommended way to sign in.
+//
+// NOTE: While email/pass authentication is supported by DiscordGo it is
+// HIGHLY DISCOURAGED by Discord. Please only use email/pass to obtain a token
+// and then use that authentication token for all future connections.
+// Also, doing any form of automation with a user (non Bot) account may result
+// in that account being permanently banned from Discord.
 func New(args ...interface{}) (s *Session, err error) {
 
 	// Create an empty Session interface.
