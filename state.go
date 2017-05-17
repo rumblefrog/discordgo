@@ -195,9 +195,6 @@ func (s *State) PresenceAdd(guildID string, presence *Presence) error {
 			if presence.User.Email != "" {
 				guild.Presences[i].User.Email = presence.User.Email
 			}
-			if presence.User.Token != "" {
-				guild.Presences[i].User.Token = presence.User.Token
-			}
 			if presence.User.Username != "" {
 				guild.Presences[i].User.Username = presence.User.Username
 			}
