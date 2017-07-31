@@ -11,6 +11,9 @@
 
 package discordgo
 
+// The Discord API version used for the REST and Websocket API.
+var ApiVersion = "6"
+
 // Known Discord API Endpoints.
 var (
 	EndpointStatus     = "https://status.discordapp.com/api/v2/"
@@ -19,7 +22,7 @@ var (
 	EndpointSmUpcoming = EndpointSm + "upcoming.json"
 
 	EndpointDiscord    = "https://discordapp.com/"
-	EndpointAPI        = EndpointDiscord + "api/"
+	EndpointAPI        = EndpointDiscord + "api/v" + ApiVersion + "/"
 	EndpointGuilds     = EndpointAPI + "guilds/"
 	EndpointChannels   = EndpointAPI + "channels/"
 	EndpointUsers      = EndpointAPI + "users/"
@@ -105,6 +108,9 @@ var (
 	EndpointWebhook         = func(wID string) string { return EndpointWebhooks + wID }
 	EndpointWebhookToken    = func(wID, token string) string { return EndpointWebhooks + wID + "/" + token }
 
+	EndpointMessageReactionsAll = func(cID, mID string) string {
+		return EndpointChannelMessage(cID, mID) + "/reactions"
+	}
 	EndpointMessageReactions = func(cID, mID, eID string) string {
 		return EndpointChannelMessage(cID, mID) + "/reactions/" + eID
 	}

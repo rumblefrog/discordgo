@@ -15,7 +15,6 @@ import (
 	"compress/zlib"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"runtime"
@@ -87,7 +86,7 @@ func (s *Session) Open() (err error) {
 		}
 
 		// Add the version and encoding to the URL
-		s.gateway = fmt.Sprintf("%s?v=5&encoding=json", s.gateway)
+		s.gateway = s.gateway + "?v=" + ApiVersion + "&encoding=json"
 	}
 
 	header := http.Header{}
@@ -200,7 +199,7 @@ type helloOp struct {
 	Trace             []string      `json:"_trace"`
 }
 
-// Number of heartbeat intervals to wait until forcing a connection restart.
+// FailedHeartbeatAcks is the Number of heartbeat intervals to wait until forcing a connection restart.
 const FailedHeartbeatAcks time.Duration = 5 * time.Millisecond
 
 // heartbeat sends regular heartbeats to Discord so it knows the client
@@ -708,6 +707,13 @@ func (s *Session) reconnect() {
 					time.Sleep(1 * time.Second)
 
 				}
+				return
+			}
+
+			// Certain race conditions can call reconnect() twice. If this happens, we
+			// just break out of the reconnect loop
+			if err == ErrWSAlreadyOpen {
+				s.log(LogInformational, "Websocket already exists, no need to reconnect")
 				return
 			}
 
