@@ -50,6 +50,10 @@ type Session struct {
 	// active guilds and the members of the guilds.
 	StateEnabled bool
 
+	// Whether or not to call event handlers synchronously.
+	// e.g false = launch event handlers in their own goroutines.
+	SyncEvents bool
+
 	// Exposed but should not be modified by User.
 
 	// Whether the Data Websocket is ready
@@ -162,6 +166,7 @@ type Channel struct {
 	Topic                string                 `json:"topic"`
 	Type                 ChannelType            `json:"type"`
 	LastMessageID        string                 `json:"last_message_id"`
+	NSFW                 bool                   `json:"nsfw"`
 	Position             int                    `json:"position"`
 	Bitrate              int                    `json:"bitrate"`
 	Recipients           []*User                `json:"recipient"`
@@ -314,7 +319,7 @@ type Presence struct {
 type Game struct {
 	Name string `json:"name"`
 	Type int    `json:"type"`
-	URL  string `json:"url"`
+	URL  string `json:"url,omitempty"`
 }
 
 // UnmarshalJSON unmarshals json to Game struct
