@@ -148,8 +148,10 @@ type Invite struct {
 	Temporary bool      `json:"temporary"`
 }
 
+// ChannelType is the type of a Channel
 type ChannelType int
 
+// Block contains known ChannelType values
 const (
 	ChannelTypeGuildText ChannelType = iota
 	ChannelTypeDM
@@ -169,9 +171,10 @@ type Channel struct {
 	NSFW                 bool                   `json:"nsfw"`
 	Position             int                    `json:"position"`
 	Bitrate              int                    `json:"bitrate"`
-	Recipients           []*User                `json:"recipient"`
+	Recipients           []*User                `json:"recipients"`
 	Messages             []*Message             `json:"-"`
 	PermissionOverwrites []*PermissionOverwrite `json:"permission_overwrites"`
+	ParentID             string                 `json:"parent_id"`
 }
 
 // A PermissionOverwrite holds permission overwrite data for a Channel
@@ -607,6 +610,7 @@ const (
 		PermissionAdministrator
 )
 
+// Block contains Discord JSON Error Response codes
 const (
 	ErrCodeUnknownAccount     = 10001
 	ErrCodeUnknownApplication = 10002

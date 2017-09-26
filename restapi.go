@@ -907,7 +907,7 @@ func (s *Session) GuildChannelsReorder(guildID string, channels []*Channel) (err
 // GuildInvites returns an array of Invite structures for the given guild
 // guildID   : The ID of a Guild.
 func (s *Session) GuildInvites(guildID string) (st []*Invite, err error) {
-	body, err := s.RequestWithBucketID("GET", EndpointGuildInvites(guildID), nil, EndpointGuildInivtes(guildID))
+	body, err := s.RequestWithBucketID("GET", EndpointGuildInvites(guildID), nil, EndpointGuildInvites(guildID))
 	if err != nil {
 		return
 	}
@@ -1863,14 +1863,9 @@ func (s *Session) WebhookEditWithToken(webhookID, token, name, avatar string) (s
 
 // WebhookDelete deletes a webhook for a given ID
 // webhookID: The ID of a webhook.
-func (s *Session) WebhookDelete(webhookID string) (st *Webhook, err error) {
+func (s *Session) WebhookDelete(webhookID string) (err error) {
 
-	body, err := s.RequestWithBucketID("DELETE", EndpointWebhook(webhookID), nil, EndpointWebhooks)
-	if err != nil {
-		return
-	}
-
-	err = unmarshal(body, &st)
+	_, err = s.RequestWithBucketID("DELETE", EndpointWebhook(webhookID), nil, EndpointWebhooks)
 
 	return
 }

@@ -15,7 +15,6 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -660,8 +659,6 @@ func (v *VoiceConnection) opusSender(udpConn *net.UDPConn, close <-chan struct{}
 	if udpConn == nil || close == nil {
 		return
 	}
-
-	runtime.LockOSThread()
 
 	// VoiceConnection is now ready to receive audio packets
 	// TODO: this needs reviewed as I think there must be a better way.
