@@ -15,6 +15,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/hashicorp/go-retryablehttp"
 	"image"
 	_ "image/jpeg" // For JPEG decoding
 	_ "image/png"  // For PNG decoding
@@ -73,7 +74,7 @@ func (s *Session) request(method, urlStr, contentType string, b []byte, bucketID
 		log.Printf("API REQUEST  PAYLOAD :: [%s]\n", string(b))
 	}
 
-	req, err := http.NewRequest(method, urlStr, bytes.NewBuffer(b))
+	req, err := retryablehttp.NewRequest(method, urlStr, bytes.NewReader(b))
 	if err != nil {
 		bucket.Release(nil)
 		return
@@ -161,7 +162,7 @@ func (s *Session) request(method, urlStr, contentType string, b []byte, bucketID
 		response, err = s.request(method, urlStr, contentType, b, bucketID, sequence)
 
 	default: // Error condition
-		err = newRestError(req, resp, response)
+		err = newRestError(req.Request, resp, response)
 	}
 
 	return
