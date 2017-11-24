@@ -83,11 +83,11 @@ func (s *Session) log(msgL int, format string, a ...interface{}) {
 // message log level
 func (v *VoiceConnection) log(msgL int, format string, a ...interface{}) {
 
-	if msgL > v.LogLevel {
-		return
-	}
+	// if msgL > v.LogLevel {
+	// 	return
+	// }
 
-	msglog(msgL, 2, format, a...)
+	// msglog(msgL, 2, format, a...)
 }
 
 // printJSON is a helper function to display JSON data in a easy to read format.

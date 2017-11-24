@@ -220,9 +220,9 @@ func (s *Session) onInterface(i interface{}) {
 	case *GuildUpdate:
 		setGuildIds(t.Guild)
 	case *VoiceServerUpdate:
-		go s.onVoiceServerUpdate(t)
+		// go s.onVoiceServerUpdate(t)
 	case *VoiceStateUpdate:
-		go s.onVoiceStateUpdate(t)
+		// go s.onVoiceStateUpdate(t)
 	}
 	err := s.State.OnInterface(s, i)
 	if err != nil {
@@ -234,5 +234,5 @@ func (s *Session) onInterface(i interface{}) {
 func (s *Session) onReady(r *Ready) {
 
 	// Store the SessionID within the Session struct.
-	s.sessionID = r.SessionID
+	// s.sessionID = r.SessionID
 }

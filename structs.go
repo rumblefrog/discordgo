@@ -16,14 +16,10 @@ import (
 	"net/http"
 	"sync"
 	"time"
-
-	"github.com/gorilla/websocket"
 )
 
 // A Session represents a connection to the Discord API.
 type Session struct {
-	sync.RWMutex
-
 	// General configurable settings.
 
 	// Authentication token for this session
@@ -53,26 +49,8 @@ type Session struct {
 	// e.g false = launch event handlers in their own goroutines.
 	SyncEvents bool
 
-	// Exposed but should not be modified by User.
-
-	// Whether the Data Websocket is ready
-	DataReady bool // NOTE: Maye be deprecated soon
-
 	// Max number of REST API retries
 	MaxRestRetries int
-
-	// Status stores the currect status of the websocket connection
-	// this is being tested, may stay, may go away.
-	status int32
-
-	// Whether the Voice Websocket is ready
-	VoiceReady bool // NOTE: Deprecated.
-
-	// Whether the UDP Connection is ready
-	UDPReady bool // NOTE: Deprecated
-
-	// Stores a mapping of guild id's to VoiceConnections
-	VoiceConnections map[string]*VoiceConnection
 
 	// Managed state object, updated internally with events when
 	// StateEnabled is true.
@@ -87,28 +65,13 @@ type Session struct {
 	// used to deal with rate limits
 	Ratelimiter *RateLimiter
 
+	// The gateway websocket connection
+	GatewayConnection *GatewayConnection
+
 	// Event handlers
 	handlersMu   sync.RWMutex
 	handlers     map[string][]*eventHandlerInstance
 	onceHandlers map[string][]*eventHandlerInstance
-
-	// The websocket connection.
-	wsConn *websocket.Conn
-
-	// When nil, the session is not listening.
-	listening chan interface{}
-
-	// sequence tracks the current gateway api websocket sequence number
-	sequence *int64
-
-	// stores sessions current Discord Gateway
-	gateway string
-
-	// stores session ID of current Gateway connection
-	sessionID string
-
-	// used to make sure gateway websocket writes do not happen concurrently
-	wsMutex sync.Mutex
 }
 
 // A VoiceRegion stores data for a specific voice region server.
