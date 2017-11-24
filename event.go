@@ -214,25 +214,17 @@ func (s *Session) onInterface(i interface{}) {
 		for _, g := range t.Guilds {
 			setGuildIds(g)
 		}
-		s.onReady(t)
 	case *GuildCreate:
 		setGuildIds(t.Guild)
 	case *GuildUpdate:
 		setGuildIds(t.Guild)
 	case *VoiceServerUpdate:
-		go s.onVoiceServerUpdate(t)
+		go s.GatewayManager.onVoiceServerUpdate(t)
 	case *VoiceStateUpdate:
-		go s.onVoiceStateUpdate(t)
+		go s.GatewayManager.onVoiceStateUpdate(t)
 	}
 	err := s.State.OnInterface(s, i)
 	if err != nil {
 		s.log(LogDebug, "error dispatching internal event, %s", err)
 	}
-}
-
-// onReady handles the ready event.
-func (s *Session) onReady(r *Ready) {
-
-	// Store the SessionID within the Session struct.
-	s.sessionID = r.SessionID
 }
