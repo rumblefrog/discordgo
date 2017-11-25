@@ -26,7 +26,7 @@ type RateLimit struct {
 
 // Event provides a basic initial struct for all websocket events.
 type Event struct {
-	Operation int             `json:"op"`
+	Operation Operation       `json:"op"`
 	Sequence  int64           `json:"s"`
 	Type      string          `json:"t"`
 	RawData   json.RawMessage `json:"d"`
