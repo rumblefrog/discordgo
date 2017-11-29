@@ -61,7 +61,9 @@ func New(args ...interface{}) (s *Session, err error) {
 		LastHeartbeatAck:       time.Now().UTC(),
 	}
 
-	s.GatewayConnection = NewGatewayConnection(s)
+	s.GatewayManager = &GatewayConnectionManager{
+		session: s,
+	}
 
 	// If no arguments are passed return the empty Session interface.
 	if args == nil {

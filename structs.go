@@ -66,7 +66,7 @@ type Session struct {
 	Ratelimiter *RateLimiter
 
 	// The gateway websocket connection
-	GatewayConnection *GatewayConnection
+	GatewayManager *GatewayConnectionManager
 
 	// Event handlers
 	handlersMu   sync.RWMutex
