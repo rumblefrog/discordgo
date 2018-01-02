@@ -1,7 +1,6 @@
 package discordgo
 
 import (
-	"encoding/binary"
 	"encoding/json"
 	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsutil"
@@ -68,20 +67,13 @@ func (w *wsWriter) writeRaw(data []byte) error {
 }
 
 func (w *wsWriter) sendClose(code ws.StatusCode) error {
-	header := ws.Header{
-		Fin:    true,
-		OpCode: ws.OpClose,
-		Length: 2,
-	}
 
-	err := ws.WriteHeader(w.conn, header)
+	d, err := ws.CompileFrame(ws.NewCloseFrame(code, ""))
 	if err != nil {
 		return err
 	}
 
-	buf := make([]byte, 2)
-	binary.BigEndian.PutUint16(buf, uint16(code))
-	_, err = w.conn.Write(buf)
+	_, err = w.conn.Write(d)
 	return err
 }
 

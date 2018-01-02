@@ -62,7 +62,8 @@ func New(args ...interface{}) (s *Session, err error) {
 	}
 
 	s.GatewayManager = &GatewayConnectionManager{
-		session: s,
+		session:          s,
+		VoiceConnections: make(map[string]*VoiceConnection),
 	}
 
 	// If no arguments are passed return the empty Session interface.

@@ -24,6 +24,7 @@ import (
 	"math/rand"
 	"net"
 	"runtime"
+	"runtime/debug"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -56,10 +57,11 @@ const (
 type GatewayStatus int
 
 const (
-	GatewayStatusConnecting GatewayStatus = iota
+	GatewayStatusDisconnected GatewayStatus = iota
+	GatewayStatusConnecting
 	GatewayStatusIdentifying
-	GatewayStatusReconnecting
-	GatewayStatusNormal
+	GatewayStatusResuming
+	GatewayStatusReady
 )
 
 // GatewayConnectionManager is responsible for managing the gateway connections for a single shard
@@ -68,6 +70,8 @@ const (
 // should eventually stop, and if they're late they will be working on a closed connection anyways so it dosen't matter
 type GatewayConnectionManager struct {
 	mu sync.RWMutex
+
+	VoiceConnections map[string]*VoiceConnection
 
 	// stores sessions current Discord Gateway
 	gateway string
@@ -93,8 +97,11 @@ func (s *Session) Open() error {
 func (g *GatewayConnectionManager) Open() error {
 	g.mu.Lock()
 	if g.currentConnection != nil {
+		cc := g.currentConnection
+		g.currentConnection = nil
+
 		g.mu.Unlock()
-		g.currentConnection.Close()
+		cc.Close()
 		g.mu.Lock()
 	}
 
@@ -110,14 +117,20 @@ func (g *GatewayConnectionManager) Open() error {
 	}
 
 	g.initSharding()
-	g.currentConnection = NewGatewayConnection(g, g.idCounter)
 
-	sessionID := g.sessionID
-	sequence := g.sequence
+	newConn := NewGatewayConnection(g, g.idCounter)
+
+	err := newConn.Open(g.sessionID, g.sequence)
+
+	g.currentConnection = newConn
+
+	for _, vc := range g.VoiceConnections {
+		go vc.reconnect(newConn)
+	}
 
 	g.mu.Unlock()
 
-	return g.currentConnection.Open(sessionID, sequence)
+	return err
 }
 
 // initSharding sets the sharding details and verifies that they are valid
@@ -131,6 +144,147 @@ func (g *GatewayConnectionManager) initSharding() {
 	if g.shardID >= g.shardCount || g.shardID < 0 {
 		g.mu.Unlock()
 		panic("Invalid shardID: ID:" + strconv.Itoa(g.shardID) + " Count:" + strconv.Itoa(g.shardCount))
+	}
+}
+
+// Status returns the status of the current active connection
+func (g *GatewayConnectionManager) Status() GatewayStatus {
+	g.mu.RLock()
+	cc := g.currentConnection
+	g.mu.RUnlock()
+
+	if cc == nil {
+		return GatewayStatusDisconnected
+	}
+
+	return cc.Status()
+}
+
+type voiceChannelJoinData struct {
+	GuildID   *string `json:"guild_id"`
+	ChannelID *string `json:"channel_id"`
+	SelfMute  bool    `json:"self_mute"`
+	SelfDeaf  bool    `json:"self_deaf"`
+}
+
+// ChannelVoiceJoin joins the session user to a voice channel.
+//
+//    gID     : Guild ID of the channel to join.
+//    cID     : Channel ID of the channel to join.
+//    mute    : If true, you will be set to muted upon joining.
+//    deaf    : If true, you will be set to deafened upon joining.
+func (g *GatewayConnectionManager) ChannelVoiceJoin(gID, cID string, mute, deaf bool) (voice *VoiceConnection, err error) {
+
+	g.session.log(LogInformational, "called")
+
+	g.mu.Lock()
+	voice, _ = g.VoiceConnections[gID]
+
+	if voice == nil {
+		voice = &VoiceConnection{
+			gatewayConnManager: g,
+			gatewayConn:        g.currentConnection,
+		}
+		g.VoiceConnections[gID] = voice
+	}
+	g.mu.Unlock()
+
+	voice.Lock()
+	voice.GuildID = gID
+	voice.ChannelID = cID
+	voice.deaf = deaf
+	voice.mute = mute
+	voice.session = g.session
+	voice.Unlock()
+
+	// Send the request to Discord that we want to join the voice channel
+	op := outgoingEvent{
+		Operation: GatewayOPVoiceStateUpdate,
+		Data:      voiceChannelJoinData{&gID, &cID, mute, deaf},
+	}
+
+	g.mu.Lock()
+	if g.currentConnection == nil {
+		return nil, errors.New("bot connected to gateway")
+	}
+	cc := g.currentConnection
+	g.mu.Unlock()
+
+	cc.writer.Queue(op)
+
+	// doesn't exactly work perfect yet.. TODO
+	err = voice.waitUntilConnected()
+	if err != nil {
+		cc.log(LogWarning, "error waiting for voice to connect, %s", err)
+		voice.Close()
+		return
+	}
+
+	return
+}
+
+// onVoiceStateUpdate handles Voice State Update events on the data websocket.
+func (g *GatewayConnectionManager) onVoiceStateUpdate(st *VoiceStateUpdate) {
+
+	// If we don't have a connection for the channel, don't bother
+	if st.ChannelID == "" {
+		return
+	}
+
+	// Check if we have a voice connection to update
+	g.mu.RLock()
+	voice, exists := g.VoiceConnections[st.GuildID]
+	g.mu.RUnlock()
+	if !exists {
+		return
+	}
+
+	// We only care about events that are about us.
+	if g.session.State.User.ID != st.UserID {
+		return
+	}
+
+	// Store the SessionID for later use.
+	voice.Lock()
+	voice.UserID = st.UserID
+	voice.sessionID = st.SessionID
+	voice.ChannelID = st.ChannelID
+	voice.Unlock()
+}
+
+// onVoiceServerUpdate handles the Voice Server Update data websocket event.
+//
+// This is also fired if the Guild's voice region changes while connected
+// to a voice channel.  In that case, need to re-establish connection to
+// the new region endpoint.
+func (g *GatewayConnectionManager) onVoiceServerUpdate(st *VoiceServerUpdate) {
+
+	g.session.log(LogInformational, "called")
+
+	g.mu.RLock()
+	voice, exists := g.VoiceConnections[st.GuildID]
+	g.mu.RUnlock()
+
+	// If no VoiceConnection exists, just skip this
+	if !exists {
+		return
+	}
+
+	// If currently connected to voice ws/udp, then disconnect.
+	// Has no effect if not connected.
+	voice.Close()
+
+	// Store values for later use
+	voice.Lock()
+	voice.token = st.Token
+	voice.endpoint = st.Endpoint
+	voice.GuildID = st.GuildID
+	voice.Unlock()
+
+	// Open a connection to the voice server
+	err := voice.open()
+	if err != nil {
+		g.session.log(LogError, "onVoiceServerUpdate voice.open, %s", err)
 	}
 }
 
@@ -206,24 +360,28 @@ func NewGatewayConnection(parent *GatewayConnectionManager, id int) *GatewayConn
 		stopWorkers:       make(chan interface{}),
 		readMessageBuffer: bytes.NewBuffer(make([]byte, 0, 0xffff)), // initial 65k buffer
 		connID:            id,
+		status:            GatewayStatusConnecting,
 	}
 }
 
 // Reconnect is a helper for Close() and Connect() and will attempt to resume if possible
 func (g *GatewayConnection) Reconnect(forceReIdentify bool) error {
-	g.log(LogInformational, "Reconnecting to the gateway")
-
 	g.mu.Lock()
 	if g.reconnecting {
 		g.mu.Unlock()
+		g.log(LogInformational, "Attempted to reconnect to the gateway while already reconnecting")
 		return nil
 	}
+
+	g.log(LogInformational, "Reconnecting to the gateway")
+	debug.PrintStack()
 
 	g.reconnecting = true
 
 	if forceReIdentify {
 		g.sessionID = ""
 	}
+
 	g.mu.Unlock()
 
 	err := g.Close()
@@ -259,6 +417,8 @@ func (g *GatewayConnection) Close() error {
 		wasOpen = true
 	}
 
+	g.status = GatewayStatusDisconnected
+
 	// If were not actually connected then do nothing
 	g.open = false
 	if g.conn == nil {
@@ -288,8 +448,11 @@ func (g *GatewayConnection) Close() error {
 	return nil
 }
 
-func (g *GatewayConnection) SessionState() {
-
+func (g *GatewayConnection) Status() (st GatewayStatus) {
+	g.mu.Lock()
+	st = g.status
+	g.mu.Unlock()
+	return
 }
 
 // Connect connects to the discord gateway and starts handling frames
@@ -335,9 +498,6 @@ func (g *GatewayConnection) Open(sessionID string, sequence int64) error {
 
 // startWorkers starts the background workers for reading, receiving and heartbeating
 func (g *GatewayConnection) startWorkers() error {
-	// Start the event reader
-	go g.reader()
-
 	// The writer
 	writerWorker := &wsWriter{
 		conn:           g.conn,
@@ -363,6 +523,9 @@ func (g *GatewayConnection) startWorkers() error {
 			}
 		},
 	}
+
+	// Start the event reader
+	go g.reader()
 
 	return nil
 }
@@ -543,6 +706,8 @@ func (g *GatewayConnection) handleDispatch(e *Event) error {
 
 		if rdy, ok := e.Struct.(*Ready); ok {
 			g.handleReady(rdy)
+		} else if r, ok := e.Struct.(*Resumed); ok {
+			g.handleResumed(r)
 		}
 
 		// Send event to any registered event handlers for it's type.
@@ -566,6 +731,13 @@ func (g *GatewayConnection) handleDispatch(e *Event) error {
 func (g *GatewayConnection) handleReady(r *Ready) {
 	g.mu.Lock()
 	g.sessionID = r.SessionID
+	g.status = GatewayStatusReady
+	g.mu.Unlock()
+}
+
+func (g *GatewayConnection) handleResumed(r *Resumed) {
+	g.mu.Lock()
+	g.status = GatewayStatusReady
 	g.mu.Unlock()
 }
 
@@ -597,7 +769,12 @@ func (g *GatewayConnection) identify() error {
 
 	g.log(LogInformational, "Sending identify")
 
+	g.mu.Lock()
+	g.status = GatewayStatusIdentifying
+	g.mu.Unlock()
+
 	g.writer.Queue(op)
+
 	return nil
 }
 
@@ -613,6 +790,10 @@ func (g *GatewayConnection) resume(sessionID string, sequence int64) error {
 
 	g.log(LogInformational, "Sending resume")
 
+	g.mu.Lock()
+	g.status = GatewayStatusResuming
+	g.mu.Unlock()
+
 	g.writer.Queue(op)
 
 	return nil
@@ -621,7 +802,7 @@ func (g *GatewayConnection) resume(sessionID string, sequence int64) error {
 func (g *GatewayConnection) onError(err error, msgf string, args ...interface{}) {
 	g.log(LogError, "%s: %s", fmt.Sprintf(msgf, args...), err.Error())
 	if err := g.ReconnectUnlessClosed(false); err != nil {
-		g.onError(err, "Failed reconnecting to the gateway")
+		g.log(LogError, "Failed reconnecting to the gateway: %v", err)
 	}
 }
 
