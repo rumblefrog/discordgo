@@ -1,6 +1,7 @@
 package discordgo
 
 import (
+	"encoding/binary"
 	"encoding/json"
 	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsutil"
@@ -13,9 +14,10 @@ import (
 type wsWriter struct {
 	session *Session
 
-	conn     net.Conn
-	closer   chan interface{}
-	incoming chan interface{}
+	conn           net.Conn
+	closer         chan interface{}
+	incoming       chan interface{}
+	sendCloseQueue chan ws.StatusCode
 
 	writer *wsutil.Writer
 }
@@ -40,6 +42,8 @@ func (w *wsWriter) Run() {
 				w.session.log(LogError, "Error writing to gateway: %s", err.Error())
 				return
 			}
+		case code := <-w.sendCloseQueue:
+			w.sendClose(code)
 		}
 	}
 }
@@ -63,10 +67,35 @@ func (w *wsWriter) writeRaw(data []byte) error {
 	return w.writer.Flush()
 }
 
+func (w *wsWriter) sendClose(code ws.StatusCode) error {
+	header := ws.Header{
+		Fin:    true,
+		OpCode: ws.OpClose,
+		Length: 2,
+	}
+
+	err := ws.WriteHeader(w.conn, header)
+	if err != nil {
+		return err
+	}
+
+	buf := make([]byte, 2)
+	binary.BigEndian.PutUint16(buf, uint16(code))
+	_, err = w.conn.Write(buf)
+	return err
+}
+
 func (w *wsWriter) Queue(data interface{}) {
 	select {
 	case <-time.After(time.Second * 10):
 	case w.incoming <- data:
+	}
+}
+
+func (w *wsWriter) QueueClose(code ws.StatusCode) {
+	select {
+	case <-time.After(time.Second * 10):
+	case w.sendCloseQueue <- code:
 	}
 }
 
@@ -118,7 +147,7 @@ func (wh *wsHeartBeater) SendBeat() {
 	seq := atomic.LoadInt64(wh.sequence)
 
 	wh.writer.Queue(&outgoingEvent{
-		Operation: int(GatewayOPHeartbeat),
+		Operation: GatewayOPHeartbeat,
 		Data:      seq,
 	})
 }

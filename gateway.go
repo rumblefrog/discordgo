@@ -21,10 +21,12 @@ import (
 	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsutil"
 	"io"
+	"math/rand"
 	"net"
 	"runtime"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -62,6 +64,8 @@ const (
 
 // GatewayConnectionManager is responsible for managing the gateway connections for a single shard
 // We create a new GatewayConnection every time we reconnect to avoid a lot of synchronization needs
+// and also to avoid having to manually reset the connection state, all the workers related to the old connection
+// should eventually stop, and if they're late they will be working on a closed connection anyways so it dosen't matter
 type GatewayConnectionManager struct {
 	mu sync.RWMutex
 
@@ -74,6 +78,11 @@ type GatewayConnectionManager struct {
 	session           *Session
 	currentConnection *GatewayConnection
 	status            GatewayStatus
+
+	sessionID string
+	sequence  int64
+
+	idCounter int
 }
 
 // Open is a helper for Session.GatewayConnectionManager.Open(s.Gateway())
@@ -89,6 +98,8 @@ func (g *GatewayConnectionManager) Open() error {
 		g.mu.Lock()
 	}
 
+	g.idCounter++
+
 	if g.gateway == "" {
 		gatewayAddr, err := g.session.Gateway()
 		if err != nil {
@@ -99,11 +110,14 @@ func (g *GatewayConnectionManager) Open() error {
 	}
 
 	g.initSharding()
-	g.currentConnection = NewGatewayConnection(g)
+	g.currentConnection = NewGatewayConnection(g, g.idCounter)
+
+	sessionID := g.sessionID
+	sequence := g.sequence
 
 	g.mu.Unlock()
 
-	return g.currentConnection.Open()
+	return g.currentConnection.Open(sessionID, sequence)
 }
 
 // initSharding sets the sharding details and verifies that they are valid
@@ -120,7 +134,7 @@ func (g *GatewayConnectionManager) initSharding() {
 	}
 }
 
-// Close is a helper for Session.GatewayConnectionManager.Close()
+// Close maintains backwards compatibility with old discordgo versions
 func (s *Session) Close() error {
 	return s.GatewayManager.Close()
 }
@@ -128,15 +142,26 @@ func (s *Session) Close() error {
 func (g *GatewayConnectionManager) Close() (err error) {
 	g.mu.Lock()
 	if g.currentConnection != nil {
+		g.mu.Unlock()
 		err = g.currentConnection.Close()
+		g.mu.Lock()
 		g.currentConnection = nil
 	}
 	g.mu.Unlock()
 	return
 }
 
-func (g *GatewayConnectionManager) Reconnect() error {
-	return g.Open()
+func (g *GatewayConnectionManager) Reconnect(forceIdentify bool) error {
+	g.mu.RLock()
+	currentConn := g.currentConnection
+	g.mu.RUnlock()
+
+	if currentConn != nil {
+		err := g.currentConnection.Reconnect(forceIdentify)
+		return err
+	}
+
+	return nil
 }
 
 type GatewayConnection struct {
@@ -145,8 +170,9 @@ type GatewayConnection struct {
 	// The parent manager
 	manager *GatewayConnectionManager
 
-	open   bool
-	status GatewayStatus
+	open         bool
+	reconnecting bool
+	status       GatewayStatus
 
 	// Stores a mapping of guild id's to VoiceConnections
 	voiceConnections map[string]*VoiceConnection
@@ -154,54 +180,120 @@ type GatewayConnection struct {
 	// The underlying websocket connection.
 	conn net.Conn
 
-	// sequence tracks the current gateway api websocket sequence number
-	sequence *int64
-
 	// stores session ID of current Gateway connection
 	sessionID string
 
 	// This gets closed when the connection closes to signal all workers to stop
 	stopWorkers chan interface{}
 
-	reader      *GatewayReader
+	wsReader *wsutil.Reader
+
+	// contains the raw message fragments until we have received them all
+	readMessageBuffer *bytes.Buffer
+
+	zlibReader  io.Reader
+	jsonDecoder *json.Decoder
+
 	heartbeater *wsHeartBeater
 	writer      *wsWriter
+
+	connID int // A increasing id per connection from the connection manager to help identify the origin of logs
 }
 
-func NewGatewayConnection(parent *GatewayConnectionManager) *GatewayConnection {
+func NewGatewayConnection(parent *GatewayConnectionManager, id int) *GatewayConnection {
 	return &GatewayConnection{
-		manager:     parent,
-		stopWorkers: make(chan interface{}),
+		manager:           parent,
+		stopWorkers:       make(chan interface{}),
+		readMessageBuffer: bytes.NewBuffer(make([]byte, 0, 0xffff)), // initial 65k buffer
+		connID:            id,
 	}
 }
 
 // Reconnect is a helper for Close() and Connect() and will attempt to resume if possible
 func (g *GatewayConnection) Reconnect(forceReIdentify bool) error {
-	return g.manager.Reconnect()
+	g.log(LogInformational, "Reconnecting to the gateway")
+
+	g.mu.Lock()
+	if g.reconnecting {
+		g.mu.Unlock()
+		return nil
+	}
+
+	g.reconnecting = true
+
+	if forceReIdentify {
+		g.sessionID = ""
+	}
+	g.mu.Unlock()
+
+	err := g.Close()
+	if err != nil {
+		return err
+	}
+
+	return g.manager.Open()
+}
+
+// ReconnectUnlessStopped will not reconnect if close was called earlier
+func (g *GatewayConnection) ReconnectUnlessClosed(forceReIdentify bool) error {
+	g.mu.Lock()
+	if g.open {
+		g.mu.Unlock()
+		return g.Reconnect(forceReIdentify)
+	}
+	g.mu.Unlock()
+
+	return nil
 }
 
 // Close closes the gateway connection
 func (g *GatewayConnection) Close() error {
+	g.log(LogInformational, "Closing gateway connection gateway")
+
 	g.mu.Lock()
 
+	// Only close the workers once
+	wasOpen := false
 	if g.open {
 		close(g.stopWorkers)
+		wasOpen = true
 	}
 
+	// If were not actually connected then do nothing
 	g.open = false
 	if g.conn == nil {
 		g.mu.Unlock()
 		return nil
 	}
 
-	err := g.conn.Close()
+	// copy these here to later be assigned to the manager for possible resuming
+	sidCop := g.sessionID
+	seqCop := atomic.LoadInt64(g.heartbeater.sequence)
+
 	g.mu.Unlock()
 
-	return err
+	if wasOpen {
+		// Send the close frame
+		g.writer.QueueClose(ws.StatusNormalClosure)
+
+		// Wait for discord to close connnection
+		time.Sleep(time.Second)
+
+		g.manager.mu.Lock()
+		g.manager.sessionID = sidCop
+		g.manager.sequence = seqCop
+		g.manager.mu.Unlock()
+	}
+
+	return nil
+}
+
+func (g *GatewayConnection) SessionState() {
+
 }
 
 // Connect connects to the discord gateway and starts handling frames
-func (g *GatewayConnection) Open() error {
+func (g *GatewayConnection) Open(sessionID string, sequence int64) error {
 	g.mu.Lock()
 	if g.open {
 		g.mu.Unlock()
@@ -220,35 +312,39 @@ func (g *GatewayConnection) Open() error {
 
 	g.conn = conn
 
-	g.manager.session.log(LogInformational, "Connected to the gateway websocket")
+	g.wsReader = wsutil.NewClientSideReader(conn)
+
+	g.log(LogInformational, "Connected to the gateway websocket")
 
 	err = g.startWorkers()
 	if err != nil {
 		return err
 	}
 
+	g.sessionID = sessionID
+
 	g.mu.Unlock()
 
-	return g.identify()
+	if sessionID == "" {
+		return g.identify()
+	} else {
+		g.heartbeater.UpdateSequence(sequence)
+		return g.resume(sessionID, sequence)
+	}
 }
 
 // startWorkers starts the background workers for reading, receiving and heartbeating
 func (g *GatewayConnection) startWorkers() error {
 	// Start the event reader
-	reader, err := NewGatewayReader(g)
-	if err != nil {
-		return err
-	}
-
-	g.reader = reader
-	go g.reader.read()
+	go g.reader()
 
 	// The writer
 	writerWorker := &wsWriter{
-		conn:     g.conn,
-		session:  g.manager.session,
-		closer:   g.stopWorkers,
-		incoming: make(chan interface{}),
+		conn:           g.conn,
+		session:        g.manager.session,
+		closer:         g.stopWorkers,
+		incoming:       make(chan interface{}),
+		sendCloseQueue: make(chan ws.StatusCode),
 	}
 	g.writer = writerWorker
 	go writerWorker.Run()
@@ -260,49 +356,29 @@ func (g *GatewayConnection) startWorkers() error {
 		receivedAck: true,
 		sequence:    new(int64),
 		onNoAck: func() {
-			g.manager.session.log(LogError, "No heartbeat ack received since sending last heartbeast, reconnecting...")
-			g.Reconnect(false)
+			g.log(LogError, "No heartbeat ack received since sending last heartbeast, reconnecting...")
+			err := g.ReconnectUnlessClosed(false)
+			if err != nil {
+				g.log(LogError, "Failed reconnecting to the gateway: %v", err)
+			}
 		},
 	}
 
 	return nil
 }
 
-// GatewayReader reads messages from the gateway and passes them to the connection for further handling
-type GatewayReader struct {
-	gw *GatewayConnection
-
-	wsReader *wsutil.Reader
-
-	// contains the raw message fragments until we have received them all
-	messageBuffer *bytes.Buffer
-
-	zlibReader  io.Reader
-	jsonDecoder *json.Decoder
-}
-
-func NewGatewayReader(gw *GatewayConnection) (*GatewayReader, error) {
-	reader := &GatewayReader{
-		gw:            gw,
-		wsReader:      wsutil.NewClientSideReader(gw.conn),
-		messageBuffer: bytes.NewBuffer(make([]byte, 0, 0xffff)), // initial 65k buffer
-	}
-
-	return reader, nil
-}
-
-// Starts reading from the gateway
-func (gr *GatewayReader) read() {
+// reader reads incmoing messages from the gateway
+func (g *GatewayConnection) reader() {
 
 	// The buffer that is used to read into the bytes buffer
+	// We need to control the amount read so we can't use buffer.ReadFrom directly
 	// TODO: write it directly into the bytes buffer somehow to avoid a uneeded copy?
 	intermediateBuffer := make([]byte, 0xffff)
 
 	for {
-		header, err := gr.wsReader.NextFrame()
+		header, err := g.wsReader.NextFrame()
 		if err != nil {
-			gr.gw.manager.session.log(LogError, "Error occurred reading next frame: %s", err.Error())
-			gr.gw.Close()
+			g.onError(err, "error reading the next websocket frame")
 			return
 		}
 
@@ -312,91 +388,95 @@ func (gr *GatewayReader) read() {
 
 		for readAmount := int64(0); readAmount < header.Length; {
 
-			n, err := gr.wsReader.Read(intermediateBuffer)
-			gr.messageBuffer.Write(intermediateBuffer[:n])
+			n, err := g.wsReader.Read(intermediateBuffer)
+			g.readMessageBuffer.Write(intermediateBuffer[:n])
 			if err != nil {
-				gr.gw.manager.session.log(LogError, "Error occured reading frame into buffer: %s", err.Error())
-				gr.gw.Close()
+				g.onError(err, "error reading the next websocket frame into intermediate buffer")
 				return
 			}
 
 			readAmount += int64(n)
 		}
 
-		gr.handleFrame(header)
+		g.handleReadFrame(header)
 	}
 }
 
-func (gr *GatewayReader) handleFrame(header ws.Header) {
+func (g *GatewayConnection) handleReadFrame(header ws.Header) {
 	if header.OpCode == ws.OpClose {
-		gr.handleCloseFrame(gr.messageBuffer.Bytes())
-		gr.messageBuffer.Reset()
+		g.handleCloseFrame(g.readMessageBuffer.Bytes())
+		g.readMessageBuffer.Reset()
 		return
 	}
 
+	// TODO: Handle these properly
 	if header.OpCode != ws.OpText && header.OpCode != ws.OpBinary {
-		gr.messageBuffer.Reset()
-		gr.gw.manager.session.log(LogError, "Don't know how to respond to websocket frame type: 0x%x", header.OpCode)
+		g.readMessageBuffer.Reset()
+		g.log(LogError, "Don't know how to respond to websocket frame type: 0x%x", header.OpCode)
 		return
 	}
 
-	if gr.messageBuffer.Len() < 4 {
+	// Package is not long enough to keep the enc of message suffix, so we need to wait for more data
+	if g.readMessageBuffer.Len() < 4 {
 		return
 	}
 
-	raw := gr.messageBuffer.Bytes()
+	// Check if it's the end of the message, the frame should have the suffix 0x00 0x00 0xff 0xff
+	raw := g.readMessageBuffer.Bytes()
 	tail := raw[len(raw)-4:]
 
 	if tail[0] != 0 || tail[1] != 0 || tail[2] != 0xff || tail[3] != 0xff {
-		fmt.Println(tail)
 		// Not the end of the packet
 		return
 	}
 
-	gr.handleMessage()
-	gr.messageBuffer.Reset()
+	g.handleReadMessage()
+	g.readMessageBuffer.Reset()
 }
 
-// handleMessage is called when we have received a full message
-// it decodes the message into an event and passes it up to the GatewayConnection
-func (gr *GatewayReader) handleMessage() {
-
-	if gr.zlibReader == nil {
-		// We initialize the zlib reader here as opposed to in NewGatewayReader because
-		// zlib.NewReader apperently needs the header straight away, or it will block forever
-		zr, err := zlib.NewReader(gr.messageBuffer)
-		if err != nil {
-			gr.gw.manager.session.log(LogError, "Failed creating zlib reader: %s", err.Error())
-			panic("well shit")
-			return
-
-		}
-
-		gr.zlibReader = zr
-		gr.jsonDecoder = json.NewDecoder(zr)
-	}
-
-	var event *Event
-	err := gr.jsonDecoder.Decode(&event)
-	if err != nil {
-		gr.gw.manager.session.log(LogError, "Failed decoding incoming gateway event: %s", err)
-		return
-	}
-
-	gr.gw.handleEvent(event)
-}
-
-func (gr *GatewayReader) handleCloseFrame(data []byte) {
+func (g *GatewayConnection) handleCloseFrame(data []byte) {
 	code := binary.BigEndian.Uint16(data)
 	var msg string
 	if len(data) > 2 {
 		msg = string(data[2:])
 	}
-	gr.gw.manager.session.log(LogError, "Got close frame, code: %d, Msg: %q", code, msg)
-	gr.gw.Close()
+
+	g.log(LogError, "Got close frame, code: %d, Msg: %q", code, msg)
+	err := g.ReconnectUnlessClosed(false)
+	if err != nil {
+		g.log(LogError, "Failed reconnecting to the gateway: %v", err)
+	}
 }
 
-// handleEvent handles a event received from the GatewayReader
+// handleReadMessage is called when we have received a full message
+// it decodes the message into an event using a shared zlib context
+func (g *GatewayConnection) handleReadMessage() {
+
+	if g.zlibReader == nil {
+		// We initialize the zlib reader here as opposed to in NewGatewayConntection because
+		// zlib.NewReader apperently needs the header straight away, or it will block forever
+		zr, err := zlib.NewReader(g.readMessageBuffer)
+		if err != nil {
+			g.onError(err, "failed creating zlib reader")
+			return
+
+		}
+
+		g.zlibReader = zr
+		g.jsonDecoder = json.NewDecoder(zr)
+	}
+
+	var event *Event
+	err := g.jsonDecoder.Decode(&event)
+	if err != nil {
+		g.onError(err, "failed decoding incoming gateway event")
+		return
+	}
+
+	g.handleEvent(event)
+}
+
+// handleEvent handles a event received from the reader
 func (g *GatewayConnection) handleEvent(event *Event) {
 	g.heartbeater.UpdateSequence(event.Sequence)
 
@@ -406,22 +486,33 @@ func (g *GatewayConnection) handleEvent(event *Event) {
 	case GatewayOPDispatch:
 		err = g.handleDispatch(event)
 	case GatewayOPHeartbeat:
+		g.log(LogInformational, "sending heartbeat immediately in response to OP1")
 		g.heartbeater.SendBeat()
 	case GatewayOPReconnect:
+		g.log(LogWarning, "got OP7 reconnect, re-connecting.")
 		err = g.Reconnect(false)
 	case GatewayOPInvalidSession:
-		g.sessionID = ""
-		g.Reconnect(true)
+		g.log(LogWarning, "got OP2 invalid session, re-connecting.")
+
+		time.Sleep(time.Second * time.Duration(rand.Intn(4)+1))
+
+		if len(event.RawData) == 4 {
+			// d == true, we can resume
+			err = g.Reconnect(false)
+		} else {
+			err = g.Reconnect(true)
+		}
 	case GatewayOPHello:
 		err = g.handleHello(event)
 	case GatewayOPHeartbeatACK:
 		g.heartbeater.ReceivedAck()
 	default:
-		g.manager.session.log(LogWarning, "Unknown operation (%d, %q): ", event.Operation, event.Type, string(event.RawData))
+		g.log(LogWarning, "unknown operation (%d, %q): ", event.Operation, event.Type, string(event.RawData))
 	}
 
 	if err != nil {
-		g.manager.session.log(LogError, "Error handling event (%d, %q): %s", event.Operation, event.Type, err.Error())
+
+		g.log(LogError, "error handling event (%d, %q)", event.Operation, event.Type)
 	}
 }
 
@@ -432,7 +523,7 @@ func (g *GatewayConnection) handleHello(event *Event) error {
 		return err
 	}
 
-	g.manager.session.log(LogInformational, "Receivied hello, heartbeat_interval: %d, _trace: %v", h.HeartbeatInterval, h.Trace)
+	g.log(LogInformational, "receivied hello, heartbeat_interval: %d, _trace: %v", h.HeartbeatInterval, h.Trace)
 
 	go g.heartbeater.Run(time.Duration(h.HeartbeatInterval) * time.Millisecond)
 
@@ -447,7 +538,7 @@ func (g *GatewayConnection) handleDispatch(e *Event) error {
 
 		// Attempt to unmarshal our event.
 		if err := json.Unmarshal(e.RawData, e.Struct); err != nil {
-			g.manager.session.log(LogError, "error unmarshalling %s event, %s", e.Type, err)
+			g.log(LogError, "error unmarshalling %s event, %s", e.Type, err)
 		}
 
 		if rdy, ok := e.Struct.(*Ready); ok {
@@ -463,7 +554,7 @@ func (g *GatewayConnection) handleDispatch(e *Event) error {
 		// Either way, READY events must fire, even with errors.
 		g.manager.session.handleEvent(e.Type, e.Struct)
 	} else {
-		g.manager.session.log(LogWarning, "unknown event: Op: %d, Seq: %d, Type: %s, Data: %s", e.Operation, e.Sequence, e.Type, string(e.RawData))
+		g.log(LogWarning, "unknown event: Op: %d, Seq: %d, Type: %s, Data: %s", e.Operation, e.Sequence, e.Type, string(e.RawData))
 	}
 
 	// For legacy reasons, we send the raw event also, this could be useful for handling unknown events.
@@ -504,12 +595,47 @@ func (g *GatewayConnection) identify() error {
 		Data:      data,
 	}
 
+	g.log(LogInformational, "Sending identify")
+
 	g.writer.Queue(op)
 	return nil
 }
 
+func (g *GatewayConnection) resume(sessionID string, sequence int64) error {
+	op := &outgoingEvent{
+		Operation: GatewayOPResume,
+		Data: &resumeData{
+			Token:     g.manager.session.Token,
+			SessionID: sessionID,
+			Sequence:  sequence,
+		},
+	}
+
+	g.log(LogInformational, "Sending resume")
+
+	g.writer.Queue(op)
+
+	return nil
+}
+
+func (g *GatewayConnection) onError(err error, msgf string, args ...interface{}) {
+	g.log(LogError, "%s: %s", fmt.Sprintf(msgf, args...), err.Error())
+	if err := g.ReconnectUnlessClosed(false); err != nil {
+		g.onError(err, "Failed reconnecting to the gateway")
+	}
+}
+
+func (g *GatewayConnection) log(msgL int, msgf string, args ...interface{}) {
+	if msgL > g.manager.session.LogLevel {
+		return
+	}
+
+	prefix := fmt.Sprintf("[S%d:CID%d]: ", g.manager.shardID, g.connID)
+	msglog(msgL, 2, prefix+msgf, args...)
+}
+
 type outgoingEvent struct {
-	Operation int         `json:"op"`
+	Operation GatewayOP   `json:"op"`
 	Type      string      `json:"t,omitempty"`
 	Data      interface{} `json:"d,omitempty"`
 }
@@ -533,4 +659,10 @@ type identifyProperties struct {
 type helloData struct {
 	HeartbeatInterval int64    `json:"heartbeat_interval"` // the interval (in milliseconds) the client should heartbeat with
 	Trace             []string `json:"_trace"`
+}
+
+type resumeData struct {
+	Token     string `json:"token"`
+	SessionID string `json:"session_id"`
+	Sequence  int64  `json:"seq"`
 }
