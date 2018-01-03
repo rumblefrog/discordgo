@@ -89,7 +89,7 @@ type GatewayConnectionManager struct {
 	idCounter int
 }
 
-// Open is a helper for Session.GatewayConnectionManager.Open(s.Gateway())
+// Open is a helper for Session.GatewayConnectionManager.Open()
 func (s *Session) Open() error {
 	return s.GatewayManager.Open()
 }
@@ -293,6 +293,7 @@ func (g *GatewayConnectionManager) onVoiceServerUpdate(st *VoiceServerUpdate) {
 }
 
 // Close maintains backwards compatibility with old discordgo versions
+// It's the same as s.GatewayManager.Close()
 func (s *Session) Close() error {
 	return s.GatewayManager.Close()
 }
@@ -587,6 +588,7 @@ func (g *GatewayConnection) reader() {
 	}
 }
 
+// handleReadFrame handles a completely read frame
 func (g *GatewayConnection) handleReadFrame(header ws.Header) {
 	if header.OpCode == ws.OpClose {
 		g.handleCloseFrame(g.readMessageBuffer.Bytes())
@@ -619,6 +621,7 @@ func (g *GatewayConnection) handleReadFrame(header ws.Header) {
 	g.readMessageBuffer.Reset()
 }
 
+// handleCloseFrame handles a close frame
 func (g *GatewayConnection) handleCloseFrame(data []byte) {
 	code := binary.BigEndian.Uint16(data)
 	var msg string
