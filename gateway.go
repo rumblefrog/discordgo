@@ -95,6 +95,9 @@ func (s *Session) Open() error {
 }
 
 func (g *GatewayConnectionManager) Open() error {
+	g.session.log(LogInformational, " called")
+	debug.PrintStack()
+
 	g.mu.Lock()
 	if g.currentConnection != nil {
 		cc := g.currentConnection
@@ -176,6 +179,7 @@ type voiceChannelJoinData struct {
 func (g *GatewayConnectionManager) ChannelVoiceJoin(gID, cID string, mute, deaf bool) (voice *VoiceConnection, err error) {
 
 	g.session.log(LogInformational, "called")
+	debug.PrintStack()
 
 	g.mu.Lock()
 	voice, _ = g.VoiceConnections[gID]
@@ -311,7 +315,7 @@ func (g *GatewayConnectionManager) Reconnect(forceIdentify bool) error {
 	g.mu.RUnlock()
 
 	if currentConn != nil {
-		err := g.currentConnection.Reconnect(forceIdentify)
+		err := currentConn.Reconnect(forceIdentify)
 		return err
 	}
 
@@ -369,11 +373,11 @@ func (g *GatewayConnection) Reconnect(forceReIdentify bool) error {
 	g.mu.Lock()
 	if g.reconnecting {
 		g.mu.Unlock()
-		g.log(LogInformational, "Attempted to reconnect to the gateway while already reconnecting")
+		g.log(LogInformational, "attempted to reconnect to the gateway while already reconnecting")
 		return nil
 	}
 
-	g.log(LogInformational, "Reconnecting to the gateway")
+	g.log(LogInformational, "reconnecting to the gateway")
 	debug.PrintStack()
 
 	g.reconnecting = true
@@ -394,37 +398,33 @@ func (g *GatewayConnection) Reconnect(forceReIdentify bool) error {
 
 // ReconnectUnlessStopped will not reconnect if close was called earlier
 func (g *GatewayConnection) ReconnectUnlessClosed(forceReIdentify bool) error {
-	g.mu.Lock()
-	if g.open {
-		g.mu.Unlock()
+	select {
+	case <-g.stopWorkers:
+		return nil
+	default:
 		return g.Reconnect(forceReIdentify)
 	}
-	g.mu.Unlock()
-
-	return nil
 }
 
 // Close closes the gateway connection
 func (g *GatewayConnection) Close() error {
-	g.log(LogInformational, "Closing gateway connection gateway")
-
 	g.mu.Lock()
-
-	// Only close the workers once
-	wasOpen := false
-	if g.open {
-		close(g.stopWorkers)
-		wasOpen = true
-	}
 
 	g.status = GatewayStatusDisconnected
 
 	// If were not actually connected then do nothing
+	wasOpen := g.open
 	g.open = false
 	if g.conn == nil {
+		if wasOpen {
+			close(g.stopWorkers)
+		}
+
 		g.mu.Unlock()
 		return nil
 	}
+
+	g.log(LogInformational, "closing gateway connection")
 
 	// copy these here to later be assigned to the manager for possible resuming
 	sidCop := g.sessionID
@@ -436,8 +436,18 @@ func (g *GatewayConnection) Close() error {
 		// Send the close frame
 		g.writer.QueueClose(ws.StatusNormalClosure)
 
+		close(g.stopWorkers)
+
 		// Wait for discord to close connnection
-		time.Sleep(time.Second)
+		for {
+			time.Sleep(time.Millisecond * 100)
+			g.mu.Lock()
+			if g.conn == nil {
+				g.mu.Unlock()
+				break
+			}
+			g.mu.Unlock()
+		}
 
 		g.manager.mu.Lock()
 		g.manager.sessionID = sidCop
@@ -448,6 +458,7 @@ func (g *GatewayConnection) Close() error {
 	return nil
 }
 
+// Status returns the current status of the connection
 func (g *GatewayConnection) Status() (st GatewayStatus) {
 	g.mu.Lock()
 	st = g.status
@@ -541,7 +552,18 @@ func (g *GatewayConnection) reader() {
 	for {
 		header, err := g.wsReader.NextFrame()
 		if err != nil {
-			g.onError(err, "error reading the next websocket frame")
+			// There was an error reading the next frame, close the connection and trigger a reconnect
+			g.mu.Lock()
+			g.conn.Close()
+			g.conn = nil
+			g.mu.Unlock()
+
+			select {
+			case <-g.stopWorkers:
+				// A close/reconnect was triggered somewhere else, do nothing
+			default:
+				g.onError(err, "error reading next gateway message: %v", err)
+			}
 			return
 		}
 
@@ -604,10 +626,10 @@ func (g *GatewayConnection) handleCloseFrame(data []byte) {
 		msg = string(data[2:])
 	}
 
-	g.log(LogError, "Got close frame, code: %d, Msg: %q", code, msg)
+	g.log(LogError, "got close frame, code: %d, Msg: %q", code, msg)
 	err := g.ReconnectUnlessClosed(false)
 	if err != nil {
-		g.log(LogError, "Failed reconnecting to the gateway: %v", err)
+		g.log(LogError, "failed reconnecting to the gateway: %v", err)
 	}
 }
 
@@ -729,6 +751,7 @@ func (g *GatewayConnection) handleDispatch(e *Event) error {
 }
 
 func (g *GatewayConnection) handleReady(r *Ready) {
+	g.log(LogInformational, "received ready")
 	g.mu.Lock()
 	g.sessionID = r.SessionID
 	g.status = GatewayStatusReady
@@ -736,6 +759,7 @@ func (g *GatewayConnection) handleReady(r *Ready) {
 }
 
 func (g *GatewayConnection) handleResumed(r *Resumed) {
+	g.log(LogInformational, "received resumed")
 	g.mu.Lock()
 	g.status = GatewayStatusReady
 	g.mu.Unlock()

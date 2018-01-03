@@ -27,6 +27,12 @@ func (w *wsWriter) Run() {
 	for {
 		select {
 		case <-w.closer:
+			select {
+			// Ensure we send the close frame
+			case code := <-w.sendCloseQueue:
+				w.sendClose(code)
+			default:
+			}
 			return
 		case msg := <-w.incoming:
 			var err error
