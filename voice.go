@@ -119,12 +119,12 @@ func (v *VoiceConnection) ChangeChannel(channelID string, mute, deaf bool) (err 
 
 	v.log(LogInformational, "called")
 
+	v.Lock()
 	data := outgoingEvent{
 		Operation: GatewayOPVoiceStateUpdate,
 		Data:      voiceChannelJoinData{&v.GuildID, &channelID, mute, deaf},
 	}
 
-	v.Lock()
 	v.gatewayConn.writer.Queue(data)
 	v.Unlock()
 
@@ -141,22 +141,23 @@ func (v *VoiceConnection) ChangeChannel(channelID string, mute, deaf bool) (err 
 // !!! NOTE !!! this function may be removed in favour of ChannelVoiceLeave
 func (v *VoiceConnection) Disconnect() (err error) {
 
+	v.Lock()
 	// Send a OP4 with a nil channel to disconnect
 	if v.sessionID != "" {
 		data := outgoingEvent{
 			Operation: GatewayOPVoiceStateUpdate,
 			Data:      voiceChannelJoinData{&v.GuildID, nil, true, true},
 		}
-		v.Lock()
+
 		v.gatewayConn.writer.Queue(data)
-		v.Unlock()
 		v.sessionID = ""
 	}
+	v.log(LogInformational, "Deleting VoiceConnection %s", v.GuildID)
+
+	v.Unlock()
 
 	// Close websocket and udp connections
 	v.Close()
-
-	v.log(LogInformational, "Deleting VoiceConnection %s", v.GuildID)
 
 	v.gatewayConnManager.mu.Lock()
 	delete(v.gatewayConnManager.VoiceConnections, v.GuildID)

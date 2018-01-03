@@ -80,6 +80,7 @@ func (w *wsWriter) sendClose(code ws.StatusCode) error {
 func (w *wsWriter) Queue(data interface{}) {
 	select {
 	case <-time.After(time.Second * 10):
+	case <-w.closer:
 	case w.incoming <- data:
 	}
 }
@@ -87,6 +88,7 @@ func (w *wsWriter) Queue(data interface{}) {
 func (w *wsWriter) QueueClose(code ws.StatusCode) {
 	select {
 	case <-time.After(time.Second * 10):
+	case <-w.closer:
 	case w.sendCloseQueue <- code:
 	}
 }
