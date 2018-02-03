@@ -28,7 +28,9 @@ func (u *User) Mention() string {
 }
 
 // AvatarURL returns a URL to the user's avatar.
-//		size:     The size of the user's avatar as a power of two
+//    size:    The size of the user's avatar as a power of two
+//             if size is an empty string, no size parameter will
+//             be added to the URL.
 func (u *User) AvatarURL(size string) string {
 	var URL string
 	if strings.HasPrefix(u.Avatar, "a_") {
@@ -37,7 +39,10 @@ func (u *User) AvatarURL(size string) string {
 		URL = EndpointUserAvatar(u.ID, u.Avatar)
 	}
 
-	return URL + "?size=" + size
+	if size != "" {
+		return URL + "?size=" + size
+	}
+	return URL
 }
 
 // A SelfUser stores user data about the token owner.
