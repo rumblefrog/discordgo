@@ -13,15 +13,12 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
-	"log"
+	"github.com/gorilla/websocket"
+	"golang.org/x/crypto/nacl/secretbox"
 	"net"
-	"runtime"
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/gorilla/websocket"
-	"golang.org/x/crypto/nacl/secretbox"
 )
 
 // ------------------------------------------------------------------------------------------------
@@ -46,10 +43,12 @@ type VoiceConnection struct {
 	OpusSend chan []byte  // Chan for sending opus audio
 	OpusRecv chan *Packet // Chan for receiving opus audio
 
-	wsConn  *websocket.Conn
-	wsMutex sync.Mutex
-	udpConn *net.UDPConn
-	session *Session
+	wsConn             *websocket.Conn
+	wsMutex            sync.Mutex
+	udpConn            *net.UDPConn
+	session            *Session
+	gatewayConn        *GatewayConnection
+	gatewayConnManager *GatewayConnectionManager
 
 	sessionID string
 	token     string
@@ -70,7 +69,7 @@ type VoiceConnection struct {
 	voiceSpeakingUpdateHandlers []VoiceSpeakingUpdateHandler
 }
 
-// VoiceSpeakingUpdateHandler type provides a function defination for the
+// VoiceSpeakingUpdateHandler type provides a function definition for the
 // VoiceSpeakingUpdate event
 type VoiceSpeakingUpdateHandler func(vc *VoiceConnection, vs *VoiceSpeakingUpdate)
 
@@ -105,7 +104,7 @@ func (v *VoiceConnection) Speaking(b bool) (err error) {
 	defer v.Unlock()
 	if err != nil {
 		v.speaking = false
-		log.Println("Speaking() write json error:", err)
+		v.log(LogError, "Speaking() write json error:", err)
 		return
 	}
 
@@ -120,13 +119,15 @@ func (v *VoiceConnection) ChangeChannel(channelID string, mute, deaf bool) (err 
 
 	v.log(LogInformational, "called")
 
-	data := voiceChannelJoinOp{4, voiceChannelJoinData{&v.GuildID, &channelID, mute, deaf}}
-	v.wsMutex.Lock()
-	err = v.session.wsConn.WriteJSON(data)
-	v.wsMutex.Unlock()
-	if err != nil {
-		return
+	v.Lock()
+	data := outgoingEvent{
+		Operation: GatewayOPVoiceStateUpdate,
+		Data:      voiceChannelJoinData{&v.GuildID, &channelID, mute, deaf},
 	}
+
+	v.gatewayConn.writer.Queue(data)
+	v.Unlock()
+
 	v.ChannelID = channelID
 	v.deaf = deaf
 	v.mute = mute
@@ -140,23 +141,27 @@ func (v *VoiceConnection) ChangeChannel(channelID string, mute, deaf bool) (err 
 // !!! NOTE !!! this function may be removed in favour of ChannelVoiceLeave
 func (v *VoiceConnection) Disconnect() (err error) {
 
+	v.Lock()
 	// Send a OP4 with a nil channel to disconnect
 	if v.sessionID != "" {
-		data := voiceChannelJoinOp{4, voiceChannelJoinData{&v.GuildID, nil, true, true}}
-		v.session.wsMutex.Lock()
-		err = v.session.wsConn.WriteJSON(data)
-		v.session.wsMutex.Unlock()
+		data := outgoingEvent{
+			Operation: GatewayOPVoiceStateUpdate,
+			Data:      voiceChannelJoinData{&v.GuildID, nil, true, true},
+		}
+
+		v.gatewayConn.writer.Queue(data)
 		v.sessionID = ""
 	}
+	v.log(LogInformational, "Deleting VoiceConnection %s", v.GuildID)
+
+	v.Unlock()
 
 	// Close websocket and udp connections
 	v.Close()
 
-	v.log(LogInformational, "Deleting VoiceConnection %s", v.GuildID)
-
-	v.session.Lock()
-	delete(v.session.VoiceConnections, v.GuildID)
-	v.session.Unlock()
+	v.gatewayConnManager.mu.Lock()
+	delete(v.gatewayConnManager.voiceConnections, v.GuildID)
+	v.gatewayConnManager.mu.Unlock()
 
 	return
 }
@@ -182,7 +187,7 @@ func (v *VoiceConnection) Close() {
 		v.log(LogInformational, "closing udp")
 		err := v.udpConn.Close()
 		if err != nil {
-			log.Println("error closing udp connection: ", err)
+			v.log(LogError, "error closing udp connection: ", err)
 		}
 		v.udpConn = nil
 	}
@@ -248,7 +253,7 @@ type voiceOP2 struct {
 }
 
 // WaitUntilConnected waits for the Voice Connection to
-// become ready, if it does not become ready it retuns an err
+// become ready, if it does not become ready it returns an err
 func (v *VoiceConnection) waitUntilConnected() error {
 
 	v.log(LogInformational, "called")
@@ -358,7 +363,7 @@ func (v *VoiceConnection) wsListen(wsConn *websocket.Conn, close <-chan struct{}
 				v.log(LogError, "voice endpoint %s websocket closed unexpectantly, %s", v.endpoint, err)
 
 				// Start reconnect goroutine then exit.
-				go v.reconnect()
+				go v.reconnect(nil)
 			}
 			return
 		}
@@ -661,8 +666,6 @@ func (v *VoiceConnection) opusSender(udpConn *net.UDPConn, close <-chan struct{}
 		return
 	}
 
-	runtime.LockOSThread()
-
 	// VoiceConnection is now ready to receive audio packets
 	// TODO: this needs reviewed as I think there must be a better way.
 	v.Lock()
@@ -788,7 +791,7 @@ func (v *VoiceConnection) opusReceiver(udpConn *net.UDPConn, close <-chan struct
 				v.log(LogError, "udp read error, %s, %s", v.endpoint, err)
 				v.log(LogDebug, "voice struct: %#v\n", v)
 
-				go v.reconnect()
+				go v.reconnect(nil)
 			}
 			return
 		}
@@ -835,7 +838,7 @@ func (v *VoiceConnection) opusReceiver(udpConn *net.UDPConn, close <-chan struct
 // NOTE : This func is messy and a WIP while I find what works.
 // It will be cleaned up once a proven stable option is flushed out.
 // aka: this is ugly shit code, please don't judge too harshly.
-func (v *VoiceConnection) reconnect() {
+func (v *VoiceConnection) reconnect(newGWConn *GatewayConnection) {
 
 	v.log(LogInformational, "called")
 
@@ -846,9 +849,17 @@ func (v *VoiceConnection) reconnect() {
 		return
 	}
 	v.reconnecting = true
+
+	if newGWConn != nil {
+		v.gatewayConn = newGWConn
+	}
 	v.Unlock()
 
-	defer func() { v.reconnecting = false }()
+	defer func() {
+		v.Lock()
+		v.reconnecting = false
+		v.Unlock()
+	}()
 
 	// Close any currently open connections
 	v.Close()
@@ -862,14 +873,21 @@ func (v *VoiceConnection) reconnect() {
 			wait = 600
 		}
 
-		if v.session.DataReady == false || v.session.wsConn == nil {
-			v.log(LogInformational, "cannot reconenct to channel %s with unready session", v.ChannelID)
+		gwStatus := v.gatewayConn.Status()
+		if gwStatus == GatewayStatusDisconnected {
+			v.log(LogError, "Gateway closed, can't reconnect voice")
+			return
+		}
+		v.log(LogError, "status: %d", gwStatus)
+		if gwStatus != GatewayStatusReady {
+			v.log(LogInformational, "cannot reconnect to channel %s with unready gateway connection: %d", v.ChannelID, gwStatus)
+
 			continue
 		}
 
 		v.log(LogInformational, "trying to reconnect to channel %s", v.ChannelID)
 
-		_, err := v.session.ChannelVoiceJoin(v.GuildID, v.ChannelID, v.mute, v.deaf)
+		_, err := v.gatewayConn.manager.ChannelVoiceJoin(v.GuildID, v.ChannelID, v.mute, v.deaf)
 		if err == nil {
 			v.log(LogInformational, "successfully reconnected to channel %s", v.ChannelID)
 			return
@@ -880,13 +898,13 @@ func (v *VoiceConnection) reconnect() {
 		// if the reconnect above didn't work lets just send a disconnect
 		// packet to reset things.
 		// Send a OP4 with a nil channel to disconnect
-		data := voiceChannelJoinOp{4, voiceChannelJoinData{&v.GuildID, nil, true, true}}
-		v.session.wsMutex.Lock()
-		err = v.session.wsConn.WriteJSON(data)
-		v.session.wsMutex.Unlock()
-		if err != nil {
-			v.log(LogError, "error sending disconnect packet, %s", err)
+		data := outgoingEvent{
+			Operation: GatewayOPVoiceStateUpdate,
+			Data:      voiceChannelJoinData{&v.GuildID, nil, true, true},
 		}
 
+		v.Lock()
+		v.gatewayConn.writer.Queue(data)
+		v.Unlock()
 	}
 }
