@@ -879,6 +879,7 @@ func (v *VoiceConnection) reconnect(newGWConn *GatewayConnection) {
 		v.log(LogError, "status: %d", gwStatus)
 		if gwStatus != GatewayStatusReady {
 			v.log(LogInformational, "cannot reconnect to channel %s with unready gateway connection: %d", v.ChannelID, gwStatus)
+
 			continue
 		}
 

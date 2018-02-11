@@ -959,6 +959,7 @@ func (s *Session) GuildRoleEdit(guildID, roleID, name string, color int, hoist b
 	// Prevent sending a color int that is too big.
 	if color > 0xFFFFFF {
 		err = fmt.Errorf("color value cannot be larger than 0xFFFFFF")
+		return nil, err
 	}
 
 	data := struct {
@@ -1022,6 +1023,9 @@ func (s *Session) GuildPruneCount(guildID string, days uint32) (count uint32, er
 
 	uri := EndpointGuildPrune(guildID) + fmt.Sprintf("?days=%d", days)
 	body, err := s.RequestWithBucketID("GET", uri, nil, EndpointGuildPrune(guildID))
+	if err != nil {
+		return
+	}
 
 	err = unmarshal(body, &p)
 	if err != nil {
@@ -1202,6 +1206,42 @@ func (s *Session) GuildEmbedEdit(guildID string, enabled bool, channelID string)
 	return
 }
 
+// GuildAuditLog returns the audit log for a Guild.
+// guildID     : The ID of a Guild.
+// userID      : If provided the log will be filtered for the given ID.
+// beforeID    : If provided all log entries returned will be before the given ID.
+// actionType  : If provided the log will be filtered for the given Action Type.
+// limit       : The number messages that can be returned. (default 50, min 1, max 100)
+func (s *Session) GuildAuditLog(guildID, userID, beforeID string, actionType, limit int) (st *GuildAuditLog, err error) {
+
+	uri := EndpointGuildAuditLogs(guildID)
+
+	v := url.Values{}
+	if userID != "" {
+		v.Set("user_id", userID)
+	}
+	if beforeID != "" {
+		v.Set("before", beforeID)
+	}
+	if actionType > 0 {
+		v.Set("action_type", strconv.Itoa(actionType))
+	}
+	if limit > 0 {
+		v.Set("limit", strconv.Itoa(limit))
+	}
+	if len(v) > 0 {
+		uri = fmt.Sprintf("%s?%s", uri, v.Encode())
+	}
+
+	body, err := s.RequestWithBucketID("GET", uri, nil, EndpointGuildAuditLogs(guildID))
+	if err != nil {
+		return
+	}
+
+	err = unmarshal(body, &st)
+	return
+}
+
 // ------------------------------------------------------------------------------------------------
 // Functions specific to Discord Channels
 // ------------------------------------------------------------------------------------------------
@@ -1221,12 +1261,16 @@ func (s *Session) Channel(channelID string) (st *Channel, err error) {
 // ChannelEdit edits the given channel
 // channelID  : The ID of a Channel
 // name       : The new name to assign the channel.
-func (s *Session) ChannelEdit(channelID, name string) (st *Channel, err error) {
+func (s *Session) ChannelEdit(channelID, name string) (*Channel, error) {
+	return s.ChannelEditComplex(channelID, &ChannelEdit{
+		Name: name,
+	})
+}
 
-	data := struct {
-		Name string `json:"name"`
-	}{name}
-
+// ChannelEditComplex edits an existing channel, replacing the parameters entirely with ChannelEdit struct
+// channelID  : The ID of a Channel
+// data          : The channel struct to send
+func (s *Session) ChannelEditComplex(channelID string, data *ChannelEdit) (st *Channel, err error) {
 	body, err := s.RequestWithBucketID("PATCH", EndpointChannel(channelID), data, EndpointChannel(channelID))
 	if err != nil {
 		return

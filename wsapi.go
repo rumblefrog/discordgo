@@ -53,6 +53,81 @@ func (w *wsWriter) Run() {
 	}
 }
 
+func newUpdateStatusData(idle int, gameType GameType, game, url string) *UpdateStatusData {
+	usd := &UpdateStatusData{
+		Status: "online",
+	}
+
+	if idle > 0 {
+		usd.IdleSince = &idle
+	}
+
+	if game != "" {
+		usd.Game = &Game{
+			Name: game,
+			Type: gameType,
+			URL:  url,
+		}
+	}
+
+	return usd
+}
+
+// UpdateStatus is used to update the user's status.
+// If idle>0 then set status to idle.
+// If game!="" then set game.
+// if otherwise, set status to active, and no game.
+func (s *Session) UpdateStatus(idle int, game string) (err error) {
+	return s.UpdateStatusComplex(*newUpdateStatusData(idle, GameTypeGame, game, ""))
+}
+
+// UpdateStreamingStatus is used to update the user's streaming status.
+// If idle>0 then set status to idle.
+// If game!="" then set game.
+// If game!="" and url!="" then set the status type to streaming with the URL set.
+// if otherwise, set status to active, and no game.
+func (s *Session) UpdateStreamingStatus(idle int, game string, url string) (err error) {
+	gameType := GameTypeGame
+	if url != "" {
+		gameType = GameTypeStreaming
+	}
+	return s.UpdateStatusComplex(*newUpdateStatusData(idle, gameType, game, url))
+}
+
+// UpdateListeningStatus is used to set the user to "Listening to..."
+// If game!="" then set to what user is listening to
+// Else, set user to active and no game.
+func (s *Session) UpdateListeningStatus(game string) (err error) {
+	return s.UpdateStatusComplex(*newUpdateStatusData(0, GameTypeListening, game, ""))
+}
+
+// UpdateStatusComplex allows for sending the raw status update data untouched by discordgo.
+func (s *Session) UpdateStatusComplex(usd UpdateStatusData) (err error) {
+
+	s.RLock()
+	defer s.RUnlock()
+	if s.wsConn == nil {
+		return ErrWSNotFound
+	}
+
+	s.wsMutex.Lock()
+	err = s.wsConn.WriteJSON(updateStatusOp{3, usd})
+	s.wsMutex.Unlock()
+
+	return
+}
+
+type requestGuildMembersData struct {
+	GuildID string `json:"guild_id"`
+	Query   string `json:"query"`
+	Limit   int    `json:"limit"`
+}
+
+type requestGuildMembersOp struct {
+	Op   int                     `json:"op"`
+	Data requestGuildMembersData `json:"d"`
+}
+
 func (w *wsWriter) writeJson(data interface{}) error {
 	serialized, err := json.Marshal(data)
 	if err != nil {
@@ -98,6 +173,43 @@ func (w *wsWriter) QueueClose(code ws.StatusCode) {
 	case w.sendCloseQueue <- code:
 	}
 }
+
+// // onVoiceServerUpdate handles the Voice Server Update data websocket event.
+// //
+// // This is also fired if the Guild's voice region changes while connected
+// // to a voice channel.  In that case, need to re-establish connection to
+// // the new region endpoint.
+// func (s *Session) onVoiceServerUpdate(st *VoiceServerUpdate) {
+
+// 	s.log(LogInformational, "called")
+
+// 	s.RLock()
+// 	voice, exists := s.VoiceConnections[st.GuildID]
+// 	s.RUnlock()
+
+// 	// If no VoiceConnection exists, just skip this
+// 	if !exists {
+// 		return
+// 	}
+
+// 	// If currently connected to voice ws/udp, then disconnect.
+// 	// Has no effect if not connected.
+// 	voice.Close()
+
+// 	// Store values for later use
+// 	voice.Lock()
+// 	voice.token = st.Token
+// 	voice.endpoint = st.Endpoint
+// 	voice.GuildID = st.GuildID
+// 	voice.Unlock()
+
+// 	// Open a connection to the voice server
+// 	err := voice.open()
+// 	if err != nil {
+// 		s.log(LogError, "onVoiceServerUpdate voice.open, %s", err)
+// >>>>>>> develop
+// 	}
+// }
 
 type wsHeartBeater struct {
 	sync.Mutex
