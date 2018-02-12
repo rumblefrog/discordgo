@@ -74,7 +74,6 @@ func (w *wsWriter) writeJson(data interface{}) error {
 }
 
 func (w *wsWriter) writeRaw(data []byte) error {
-	w.session.log(LogInformational, "Writing %d bytes", len(data))
 	_, err := w.writer.WriteThrough(data)
 	if err != nil {
 		return err

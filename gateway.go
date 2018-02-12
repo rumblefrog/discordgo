@@ -96,7 +96,6 @@ func (s *Session) Open() error {
 
 func (g *GatewayConnectionManager) Open() error {
 	g.session.log(LogInformational, " called")
-	debug.PrintStack()
 
 	g.mu.Lock()
 	if g.currentConnection != nil {
@@ -520,7 +519,7 @@ func (s *Session) UpdateListeningStatus(game string) (err error) {
 
 func (s *Session) UpdateStatusComplex(usd UpdateStatusData) (err error) {
 	s.GatewayManager.mu.RLock()
-	defer s.GatewayManager.mu.RLock()
+	defer s.GatewayManager.mu.RUnlock()
 
 	if s.GatewayManager.currentConnection == nil {
 		return errors.New("No gateway connection")
