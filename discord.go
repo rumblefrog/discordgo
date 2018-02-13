@@ -14,9 +14,13 @@
 package discordgo
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"github.com/hashicorp/go-retryablehttp"
+	"log"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -57,7 +61,7 @@ func New(args ...interface{}) (s *Session, err error) {
 		ShardID:                0,
 		ShardCount:             1,
 		MaxRestRetries:         3,
-		Client:                 &http.Client{Timeout: (20 * time.Second)},
+		Client:                 retryablehttp.NewClient(),
 		LastHeartbeatAck:       time.Now().UTC(),
 	}
 
@@ -65,6 +69,10 @@ func New(args ...interface{}) (s *Session, err error) {
 		session:          s,
 		voiceConnections: make(map[string]*VoiceConnection),
 	}
+
+	s.Client.CheckRetry = CheckRetry
+	s.Client.RetryMax = 10
+	s.Client.Logger.SetOutput(&retryableLogger{})
 
 	// If no arguments are passed return the empty Session interface.
 	if args == nil {
@@ -147,4 +155,28 @@ func New(args ...interface{}) (s *Session, err error) {
 	// It is recommended that you now call Open() so that events will trigger.
 
 	return
+}
+
+func CheckRetry(resp *http.Response, err error) (bool, error) {
+	if err != nil {
+		return true, err
+	}
+
+	return false, nil
+}
+
+type retryableLogger struct{}
+
+func (r *retryableLogger) Write(b []byte) (n int, err error) {
+	if bytes.Contains(b, []byte("[DEBUG]")) {
+		return len(b), nil
+	}
+
+	s := string(b)
+	if strings.HasSuffix(s, "\n") {
+		s = s[:len(s)-1]
+	}
+
+	log.Println(s)
+	return len(b), nil
 }
