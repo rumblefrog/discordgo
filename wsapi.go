@@ -109,43 +109,6 @@ func (w *wsWriter) QueueClose(code ws.StatusCode) {
 	}
 }
 
-// // onVoiceServerUpdate handles the Voice Server Update data websocket event.
-// //
-// // This is also fired if the Guild's voice region changes while connected
-// // to a voice channel.  In that case, need to re-establish connection to
-// // the new region endpoint.
-// func (s *Session) onVoiceServerUpdate(st *VoiceServerUpdate) {
-
-// 	s.log(LogInformational, "called")
-
-// 	s.RLock()
-// 	voice, exists := s.VoiceConnections[st.GuildID]
-// 	s.RUnlock()
-
-// 	// If no VoiceConnection exists, just skip this
-// 	if !exists {
-// 		return
-// 	}
-
-// 	// If currently connected to voice ws/udp, then disconnect.
-// 	// Has no effect if not connected.
-// 	voice.Close()
-
-// 	// Store values for later use
-// 	voice.Lock()
-// 	voice.token = st.Token
-// 	voice.endpoint = st.Endpoint
-// 	voice.GuildID = st.GuildID
-// 	voice.Unlock()
-
-// 	// Open a connection to the voice server
-// 	err := voice.open()
-// 	if err != nil {
-// 		s.log(LogError, "onVoiceServerUpdate voice.open, %s", err)
-// >>>>>>> develop
-// 	}
-// }
-
 type wsHeartBeater struct {
 	sync.Mutex
 
