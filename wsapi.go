@@ -152,6 +152,7 @@ type wsHeartBeater struct {
 	writer      *wsWriter
 	sequence    *int64
 	receivedAck bool
+	missedAcks  int
 	stop        chan interface{}
 
 	// Called when we received no Ack from last heartbeat
@@ -161,6 +162,7 @@ type wsHeartBeater struct {
 func (wh *wsHeartBeater) ReceivedAck() {
 	wh.Lock()
 	wh.receivedAck = true
+	wh.missedAcks = 0
 	wh.Unlock()
 }
 
@@ -178,8 +180,11 @@ func (wh *wsHeartBeater) Run(interval time.Duration) {
 			wh.Lock()
 			hasReceivedAck := wh.receivedAck
 			wh.receivedAck = false
+			wh.missedAcks++
+			missed := wh.missedAcks
 			wh.Unlock()
-			if !hasReceivedAck && wh.onNoAck != nil {
+
+			if !hasReceivedAck && wh.onNoAck != nil && missed > 4 {
 				wh.onNoAck()
 			}
 
