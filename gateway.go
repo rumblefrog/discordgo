@@ -379,6 +379,15 @@ func NewGatewayConnection(parent *GatewayConnectionManager, id int) *GatewayConn
 	}
 }
 
+func (g *GatewayConnection) concurrentReconnect(forceReIdentify bool) {
+	go func() {
+		err := g.Reconnect(forceReIdentify)
+		if err != nil {
+			g.log(LogError, "failed reconnecting to the gateway: %v", err)
+		}
+	}()
+}
+
 // Reconnect is a helper for Close() and Connect() and will attempt to resume if possible
 func (g *GatewayConnection) Reconnect(forceReIdentify bool) error {
 	g.mu.Lock()
@@ -560,6 +569,7 @@ func (g *GatewayConnection) open(sessionID string, sequence int64) error {
 	}
 
 	g.log(LogInformational, "Connected to the gateway websocket")
+	go g.manager.session.handleEvent(connectEventType, &Connect{})
 
 	g.conn = conn
 	g.opened = true
@@ -641,6 +651,9 @@ func (g *GatewayConnection) reader() {
 			default:
 				go g.onError(err, "error reading next gateway message: %v", err)
 			}
+
+			go g.manager.session.handleEvent(disconnectEventType, &Disconnect{})
+
 			return
 		}
 
@@ -780,7 +793,7 @@ func (g *GatewayConnection) handleEvent(event *Event) {
 		g.heartbeater.SendBeat()
 	case GatewayOPReconnect:
 		g.log(LogWarning, "got OP7 reconnect, re-connecting.")
-		err = g.Reconnect(false)
+		g.concurrentReconnect(false)
 	case GatewayOPInvalidSession:
 		g.log(LogWarning, "got OP2 invalid session, re-connecting.")
 
@@ -788,9 +801,9 @@ func (g *GatewayConnection) handleEvent(event *Event) {
 
 		if len(event.RawData) == 4 {
 			// d == true, we can resume
-			err = g.Reconnect(false)
+			g.concurrentReconnect(false)
 		} else {
-			err = g.Reconnect(true)
+			g.concurrentReconnect(true)
 		}
 	case GatewayOPHello:
 		err = g.handleHello(event)
