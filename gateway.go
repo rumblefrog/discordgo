@@ -196,6 +196,7 @@ func (g *GatewayConnectionManager) ChannelVoiceJoin(gID, cID string, mute, deaf 
 			gatewayConn:        g.currentConnection,
 			GuildID:            gID,
 			session:            g.session,
+			Connected:          make(chan bool),
 		}
 
 		g.voiceConnections[gID] = voice
@@ -559,13 +560,21 @@ func (g *GatewayConnection) open(sessionID string, sequence int64) error {
 		return ErrAlreadyOpen
 	}
 
-	conn, _, _, err := ws.Dial(context.TODO(), g.manager.gateway+"?v="+APIVersion+"&encoding=json&compress=zlib-stream")
-	if err != nil {
-		g.mu.Unlock()
-		if conn != nil {
-			conn.Close()
+	var conn net.Conn
+	var err error
+
+	for {
+		conn, _, _, err = ws.Dial(context.TODO(), g.manager.gateway+"?v="+APIVersion+"&encoding=json&compress=zlib-stream")
+		if err != nil {
+			if conn != nil {
+				conn.Close()
+			}
+			g.log(LogError, "Failed opening connection to the gateway, retrying in 5 seconds...")
+			time.Sleep(time.Second * 5)
+			continue
 		}
-		return err
+
+		break
 	}
 
 	g.log(LogInformational, "Connected to the gateway websocket")
@@ -795,14 +804,14 @@ func (g *GatewayConnection) handleEvent(event *Event) {
 		g.log(LogWarning, "got OP7 reconnect, re-connecting.")
 		g.concurrentReconnect(false)
 	case GatewayOPInvalidSession:
-		g.log(LogWarning, "got OP2 invalid session, re-connecting.")
-
 		time.Sleep(time.Second * time.Duration(rand.Intn(4)+1))
 
 		if len(event.RawData) == 4 {
 			// d == true, we can resume
+			g.log(LogWarning, "got OP2 invalid session, re-connecting. (no resume) d: %v", string(event.RawData))
 			g.concurrentReconnect(false)
 		} else {
+			g.log(LogWarning, "got OP2 invalid session, re-connecting. (resume) d: %v", string(event.RawData))
 			g.concurrentReconnect(true)
 		}
 	case GatewayOPHello:
@@ -881,6 +890,8 @@ func (g *GatewayConnection) handleResumed(r *Resumed) {
 	g.mu.Lock()
 	g.status = GatewayStatusReady
 	g.mu.Unlock()
+
+	go g.manager.session.handleEvent(resumedEventType, &Resumed{})
 }
 
 func (g *GatewayConnection) identify() error {
