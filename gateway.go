@@ -647,21 +647,7 @@ func (g *GatewayConnection) reader() {
 	for {
 		header, err := g.wsReader.NextFrame()
 		if err != nil {
-			// There was an error reading the next frame, close the connection and trigger a reconnect
-			g.mu.Lock()
-			g.conn.Close()
-			g.conn = nil
-			g.mu.Unlock()
-
-			select {
-			case <-g.stopWorkers:
-				// A close/reconnect was triggered somewhere else, do nothing
-			default:
-				go g.onError(err, "error reading next gateway message: %v", err)
-			}
-
-			go g.manager.session.handleEvent(disconnectEventType, &Disconnect{})
-
+			g.readerError(err, "error reading next gateway message: %v", err)
 			return
 		}
 
@@ -673,9 +659,10 @@ func (g *GatewayConnection) reader() {
 
 			n, err := g.wsReader.Read(intermediateBuffer)
 			if err != nil {
-				go g.onError(err, "error reading the next websocket frame into intermediate buffer")
+				g.readerError(err, "error reading the next websocket frame into intermediate buffer (n %d, l %d, hl %d): %v", n, readAmount, header.Length, err)
 				return
 			}
+
 			if n != 0 {
 				// g.log(LogInformational, base64.URLEncoding.EncodeToString(intermediateBuffer[:n]))
 				g.readMessageBuffer.Write(intermediateBuffer[:n])
@@ -686,6 +673,24 @@ func (g *GatewayConnection) reader() {
 
 		g.handleReadFrame(header)
 	}
+}
+
+func (g *GatewayConnection) readerError(err error, msgf string, args ...interface{}) {
+	// There was an error reading the next frame, close the connection and trigger a reconnect
+	g.mu.Lock()
+	g.conn.Close()
+	g.conn = nil
+	g.mu.Unlock()
+
+	select {
+	case <-g.stopWorkers:
+		// A close/reconnect was triggered somewhere else, do nothing
+	default:
+		go g.onError(err, msgf, args...)
+	}
+
+	go g.manager.session.handleEvent(disconnectEventType, &Disconnect{})
+
 }
 
 var (
