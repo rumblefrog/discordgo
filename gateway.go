@@ -196,7 +196,6 @@ func (g *GatewayConnectionManager) ChannelVoiceJoin(gID, cID string, mute, deaf 
 			gatewayConn:        g.currentConnection,
 			GuildID:            gID,
 			session:            g.session,
-			Connected:          make(chan bool),
 		}
 
 		g.voiceConnections[gID] = voice
@@ -808,10 +807,10 @@ func (g *GatewayConnection) handleEvent(event *Event) {
 
 		if len(event.RawData) == 4 {
 			// d == true, we can resume
-			g.log(LogWarning, "got OP2 invalid session, re-connecting. (no resume) d: %v", string(event.RawData))
+			g.log(LogWarning, "got OP9 invalid session, re-indetifying. (resume) d: %v", string(event.RawData))
 			g.concurrentReconnect(false)
 		} else {
-			g.log(LogWarning, "got OP2 invalid session, re-connecting. (resume) d: %v", string(event.RawData))
+			g.log(LogWarning, "got OP9 invalid session, re-connecting. (no resume) d: %v", string(event.RawData))
 			g.concurrentReconnect(true)
 		}
 	case GatewayOPHello:
