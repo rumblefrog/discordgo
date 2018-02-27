@@ -458,6 +458,8 @@ func (g *GatewayConnection) Close() error {
 
 		close(g.stopWorkers)
 
+		started := time.Now()
+
 		// Wait for discord to close connnection
 		for {
 			time.Sleep(time.Millisecond * 100)
@@ -465,6 +467,12 @@ func (g *GatewayConnection) Close() error {
 			if g.conn == nil {
 				g.mu.Unlock()
 				break
+			}
+
+			// Yes, this actually does happen...
+			if time.Since(started) > time.Second*5 {
+				g.log(LogWarning, "dead connection")
+				g.conn.Close()
 			}
 			g.mu.Unlock()
 		}
