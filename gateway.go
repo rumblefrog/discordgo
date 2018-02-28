@@ -433,6 +433,9 @@ func (g *GatewayConnection) Close() error {
 
 	g.status = GatewayStatusDisconnected
 
+	sidCop := g.sessionID
+	seqCop := atomic.LoadInt64(g.heartbeater.sequence)
+
 	// If were not actually connected then do nothing
 	wasRunning := g.workersRunning
 	g.workersRunning = false
@@ -442,14 +445,17 @@ func (g *GatewayConnection) Close() error {
 		}
 
 		g.mu.Unlock()
+
+		g.manager.mu.Lock()
+		g.manager.sessionID = sidCop
+		g.manager.sequence = seqCop
+		g.manager.mu.Unlock()
 		return nil
 	}
 
 	g.log(LogInformational, "closing gateway connection")
 
 	// copy these here to later be assigned to the manager for possible resuming
-	sidCop := g.sessionID
-	seqCop := atomic.LoadInt64(g.heartbeater.sequence)
 
 	g.mu.Unlock()
 
