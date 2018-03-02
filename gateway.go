@@ -169,6 +169,18 @@ func (g *GatewayConnectionManager) Status() GatewayStatus {
 	return cc.Status()
 }
 
+func (g *GatewayConnectionManager) HeartBeatStats() (lastSend time.Time, lastAck time.Time) {
+	g.mu.RLock()
+	conn := g.currentConnection
+	g.mu.RUnlock()
+	if conn == nil {
+		return
+	}
+
+	lastSend, lastAck = conn.heartbeater.Times()
+	return
+}
+
 type voiceChannelJoinData struct {
 	GuildID   *string `json:"guild_id"`
 	ChannelID *string `json:"channel_id"`

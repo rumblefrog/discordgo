@@ -120,12 +120,16 @@ type wsHeartBeater struct {
 
 	// Called when we received no Ack from last heartbeat
 	onNoAck func()
+
+	lastAck  time.Time
+	lastSend time.Time
 }
 
 func (wh *wsHeartBeater) ReceivedAck() {
 	wh.Lock()
 	wh.receivedAck = true
 	wh.missedAcks = 0
+	wh.lastAck = time.Now()
 	wh.Unlock()
 }
 
@@ -145,6 +149,8 @@ func (wh *wsHeartBeater) Run(interval time.Duration) {
 			wh.receivedAck = false
 			wh.missedAcks++
 			missed := wh.missedAcks
+
+			wh.lastSend = time.Now()
 			wh.Unlock()
 
 			if !hasReceivedAck && wh.onNoAck != nil && missed > 4 {
@@ -165,4 +171,12 @@ func (wh *wsHeartBeater) SendBeat() {
 		Operation: GatewayOPHeartbeat,
 		Data:      seq,
 	})
+}
+
+func (wh *wsHeartBeater) Times() (send time.Time, ack time.Time) {
+	wh.Lock()
+	send = wh.lastSend
+	ack = wh.lastAck
+	wh.Unlock()
+	return
 }
