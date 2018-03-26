@@ -54,7 +54,7 @@ func (w *wsWriter) Run() {
 }
 
 type requestGuildMembersData struct {
-	GuildID string `json:"guild_id"`
+	GuildID int64  `json:"guild_id,string"`
 	Query   string `json:"query"`
 	Limit   int    `json:"limit"`
 }

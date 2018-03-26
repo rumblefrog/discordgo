@@ -12,6 +12,7 @@ package discordgo
 import (
 	"io"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -32,20 +33,53 @@ const (
 
 // A Message stores all data related to a specific Discord message.
 type Message struct {
-	ID              string               `json:"id"`
-	ChannelID       string               `json:"channel_id"`
-	Content         string               `json:"content"`
-	Timestamp       Timestamp            `json:"timestamp"`
-	EditedTimestamp Timestamp            `json:"edited_timestamp"`
-	MentionRoles    []string             `json:"mention_roles"`
-	Tts             bool                 `json:"tts"`
-	MentionEveryone bool                 `json:"mention_everyone"`
-	Author          *User                `json:"author"`
-	Attachments     []*MessageAttachment `json:"attachments"`
-	Embeds          []*MessageEmbed      `json:"embeds"`
-	Mentions        []*User              `json:"mentions"`
-	Reactions       []*MessageReactions  `json:"reactions"`
-	Type            MessageType          `json:"type"`
+	// The ID of the message.
+	ID int64 `json:"id,string"`
+
+	// The ID of the channel in which the message was sent.
+	ChannelID int64 `json:"channel_id,string"`
+
+	// The content of the message.
+	Content string `json:"content"`
+
+	// The time at which the messsage was sent.
+	// CAUTION: this field may be removed in a
+	// future API version; it is safer to calculate
+	// the creation time via the ID.
+	Timestamp Timestamp `json:"timestamp"`
+
+	// The time at which the last edit of the message
+	// occurred, if it has been edited.
+	EditedTimestamp Timestamp `json:"edited_timestamp"`
+
+	// The roles mentioned in the message.
+	MentionRoles IDSlice `json:"mention_roles,string"`
+
+	// Whether the message is text-to-speech.
+	Tts bool `json:"tts"`
+
+	// Whether the message mentions everyone.
+	MentionEveryone bool `json:"mention_everyone"`
+
+	// The author of the message. This is not guaranteed to be a
+	// valid user (webhook-sent messages do not possess a full author).
+	Author *User `json:"author"`
+
+	// A list of attachments present in the message.
+	Attachments []*MessageAttachment `json:"attachments"`
+
+	// A list of embeds present in the message. Multiple
+	// embeds can currently only be sent by webhooks.
+	Embeds []*MessageEmbed `json:"embeds"`
+
+	// A list of users mentioned in the message.
+	Mentions []*User `json:"mentions"`
+
+	// A list of reactions to the message.
+	Reactions []*MessageReactions `json:"reactions"`
+
+	// The type of the message.
+	Type MessageType `json:"type"`
 }
 
 // File stores info about files you e.g. send in messages.
@@ -72,13 +106,13 @@ type MessageEdit struct {
 	Content *string       `json:"content,omitempty"`
 	Embed   *MessageEmbed `json:"embed,omitempty"`
 
-	ID      string
-	Channel string
+	ID      int64
+	Channel int64
 }
 
 // NewMessageEdit returns a MessageEdit struct, initialized
 // with the Channel and ID.
-func NewMessageEdit(channelID string, messageID string) *MessageEdit {
+func NewMessageEdit(channelID int64, messageID int64) *MessageEdit {
 	return &MessageEdit{
 		Channel: channelID,
 		ID:      messageID,
@@ -193,8 +227,8 @@ func (m *Message) ContentWithMentionsReplaced() (content string) {
 
 	for _, user := range m.Mentions {
 		content = strings.NewReplacer(
-			"<@"+user.ID+">", "@"+user.Username,
-			"<@!"+user.ID+">", "@"+user.Username,
+			"<@"+StrID(user.ID)+">", "@"+user.Username,
+			"<@!"+StrID(user.ID)+">", "@"+user.Username,
 		).Replace(content)
 	}
 	return
@@ -227,8 +261,8 @@ func (m *Message) ContentWithMoreMentionsReplaced(s *Session) (content string, e
 		}
 
 		content = strings.NewReplacer(
-			"<@"+user.ID+">", "@"+user.Username,
-			"<@!"+user.ID+">", "@"+nick,
+			"<@"+StrID(user.ID)+">", "@"+user.Username,
+			"<@!"+StrID(user.ID)+">", "@"+nick,
 		).Replace(content)
 	}
 	for _, roleID := range m.MentionRoles {
@@ -237,11 +271,16 @@ func (m *Message) ContentWithMoreMentionsReplaced(s *Session) (content string, e
 			continue
 		}
 
-		content = strings.Replace(content, "<&"+role.ID+">", "@"+role.Name, -1)
+		content = strings.Replace(content, "<@&"+StrID(role.ID)+">", "@"+role.Name, -1)
 	}
 
 	content = patternChannels.ReplaceAllStringFunc(content, func(mention string) string {
-		channel, err := s.State.Channel(mention[2 : len(mention)-1])
+		id, err := strconv.ParseInt(mention[2:len(mention)-1], 10, 64)
+		if err != nil {
+			return mention
+		}
+
+		channel, err := s.State.Channel(id)
 		if err != nil || channel.Type == ChannelTypeGuildVoice {
 			return mention
 		}

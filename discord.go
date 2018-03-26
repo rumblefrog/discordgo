@@ -20,6 +20,7 @@ import (
 	"github.com/hashicorp/go-retryablehttp"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -179,4 +180,8 @@ func (r *retryableLogger) Write(b []byte) (n int, err error) {
 
 	log.Println(s)
 	return len(b), nil
+}
+
+func StrID(id int64) string {
+	return strconv.FormatInt(id, 10)
 }
