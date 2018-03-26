@@ -120,9 +120,13 @@ func (v *VoiceConnection) ChangeChannel(channelID int64, mute, deaf bool) (err e
 	v.log(LogInformational, "called")
 
 	v.Lock()
+
+	strGID := StrID(v.GuildID)
+	strCID := StrID(v.ChannelID)
+
 	data := outgoingEvent{
 		Operation: GatewayOPVoiceStateUpdate,
-		Data:      voiceChannelJoinData{&v.GuildID, &channelID, mute, deaf},
+		Data:      voiceChannelJoinData{&strCID, &strGID, mute, deaf},
 	}
 
 	v.gatewayConn.writer.Queue(data)
@@ -144,9 +148,12 @@ func (v *VoiceConnection) Disconnect() (err error) {
 	v.Lock()
 	// Send a OP4 with a nil channel to disconnect
 	if v.sessionID != "" {
+
+		strGID := StrID(v.GuildID)
+
 		data := outgoingEvent{
 			Operation: GatewayOPVoiceStateUpdate,
-			Data:      voiceChannelJoinData{&v.GuildID, nil, true, true},
+			Data:      voiceChannelJoinData{&strGID, nil, true, true},
 		}
 
 		v.gatewayConn.writer.Queue(data)
@@ -898,9 +905,10 @@ func (v *VoiceConnection) reconnect(newGWConn *GatewayConnection) {
 		// if the reconnect above didn't work lets just send a disconnect
 		// packet to reset things.
 		// Send a OP4 with a nil channel to disconnect
+		strGID := StrID(v.GuildID)
 		data := outgoingEvent{
 			Operation: GatewayOPVoiceStateUpdate,
-			Data:      voiceChannelJoinData{&v.GuildID, nil, true, true},
+			Data:      voiceChannelJoinData{&strGID, nil, true, true},
 		}
 
 		v.Lock()

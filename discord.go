@@ -68,7 +68,7 @@ func New(args ...interface{}) (s *Session, err error) {
 
 	s.GatewayManager = &GatewayConnectionManager{
 		session:          s,
-		voiceConnections: make(map[string]*VoiceConnection),
+		voiceConnections: make(map[int64]*VoiceConnection),
 	}
 
 	s.Client.CheckRetry = CheckRetry

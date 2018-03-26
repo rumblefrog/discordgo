@@ -71,7 +71,7 @@ const (
 type GatewayConnectionManager struct {
 	mu sync.RWMutex
 
-	voiceConnections map[string]*VoiceConnection
+	voiceConnections map[int64]*VoiceConnection
 
 	// stores sessions current Discord Gateway
 	gateway string
@@ -194,7 +194,7 @@ type voiceChannelJoinData struct {
 //    cID     : Channel ID of the channel to join.
 //    mute    : If true, you will be set to muted upon joining.
 //    deaf    : If true, you will be set to deafened upon joining.
-func (g *GatewayConnectionManager) ChannelVoiceJoin(gID, cID string, mute, deaf bool) (voice *VoiceConnection, err error) {
+func (g *GatewayConnectionManager) ChannelVoiceJoin(gID, cID int64, mute, deaf bool) (voice *VoiceConnection, err error) {
 
 	g.session.log(LogInformational, "called")
 	debug.PrintStack()
@@ -221,10 +221,13 @@ func (g *GatewayConnectionManager) ChannelVoiceJoin(gID, cID string, mute, deaf 
 	voice.mute = mute
 	voice.Unlock()
 
+	strGID := StrID(gID)
+	strCID := StrID(cID)
+
 	// Send the request to Discord that we want to join the voice channel
 	op := outgoingEvent{
 		Operation: GatewayOPVoiceStateUpdate,
-		Data:      voiceChannelJoinData{&gID, &cID, mute, deaf},
+		Data:      voiceChannelJoinData{&strGID, &strCID, mute, deaf},
 	}
 
 	g.mu.Lock()
@@ -251,7 +254,7 @@ func (g *GatewayConnectionManager) ChannelVoiceJoin(gID, cID string, mute, deaf 
 func (g *GatewayConnectionManager) onVoiceStateUpdate(st *VoiceStateUpdate) {
 
 	// If we don't have a connection for the channel, don't bother
-	if st.ChannelID == "" {
+	if st.ChannelID == 0 {
 		return
 	}
 
