@@ -1,3 +1,4 @@
+//go:generate generateEmojiCodeMap -pkg discordgo
 // Discordgo - Discord bindings for Go
 // Available at https://github.com/bwmarrin/discordgo
 
@@ -117,10 +118,13 @@ func (ids IDSlice) MarshalJSON() ([]byte, error) {
 }
 
 type EmojiName struct {
-  string
+	string
 }
 
 func (emoji EmojiName) String() string {
-  // Discord does not accept the emoji qualifier character.
-  return strings.Replace(emoji.string, "\uFE0F", "", 1)
+	if codepoint, ok := emojiCodeMap[emoji.string]; ok {
+		emoji.string = codepoint
+	}
+	// Discord does not accept the emoji qualifier character.
+	return strings.Replace(emoji.string, "\uFE0F", "", 1)
 }

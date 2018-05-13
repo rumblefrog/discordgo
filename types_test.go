@@ -30,6 +30,7 @@ func TestEmojiNameUnqualify(t *testing.T) {
 	}{
 		{"⚔️", "⚔"},
 		{"⚔", "⚔"},
+		{":crossed_swords:", "⚔"},
 		{"1o57:442605016813928449", "1o57:442605016813928449"},
 	}
 
