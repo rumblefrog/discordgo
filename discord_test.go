@@ -109,12 +109,9 @@ func TestOpenClose(t *testing.T) {
 	// this is totally gross.
 	start := time.Now()
 	for {
-		d.RLock()
-		if d.DataReady {
-			d.RUnlock()
+		if d.GatewayManager.Status() == GatewayStatusReady {
 			break
 		}
-		d.RUnlock()
 
 		if time.Since(start) > 10*time.Second {
 			t.Fatal("DataReady never became true.yy")
