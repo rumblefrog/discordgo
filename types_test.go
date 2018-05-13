@@ -22,3 +22,22 @@ func TestTimestampParse(t *testing.T) {
 		t.Error("Incorrect timezone")
 	}
 }
+
+func TestEmojiNameUnqualify(t *testing.T) {
+	cases := []struct {
+		have string
+		want string
+	}{
+		{"⚔️", "⚔"},
+		{"⚔", "⚔"},
+		{"1o57:442605016813928449", "1o57:442605016813928449"},
+	}
+
+	for _, c := range cases {
+		emoji := EmojiName{c.have}
+		if emoji.String() != c.want {
+			t.Error("Failed to strip emoji qualifier: '%s' -> '%s' not '%s'",
+				c.have, emoji.String(), c.want)
+		}
+	}
+}

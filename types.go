@@ -115,3 +115,12 @@ func (ids IDSlice) MarshalJSON() ([]byte, error) {
 	outPut = append(outPut, '"', ']')
 	return outPut, nil
 }
+
+type EmojiName struct {
+  string
+}
+
+func (emoji EmojiName) String() string {
+  // Discord does not accept the emoji qualifier character.
+  return strings.Replace(emoji.string, "\uFE0F", "", 1)
+}
