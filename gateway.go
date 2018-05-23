@@ -924,8 +924,6 @@ func (g *GatewayConnection) handleResumed(r *Resumed) {
 	g.mu.Lock()
 	g.status = GatewayStatusReady
 	g.mu.Unlock()
-
-	go g.manager.session.handleEvent(resumedEventType, &Resumed{})
 }
 
 func (g *GatewayConnection) identify() error {
