@@ -89,6 +89,22 @@ type GatewayConnectionManager struct {
 	idCounter int
 }
 
+func (s *GatewayConnectionManager) SetSessionInfo(sessionID string, sequence int64) {
+	s.mu.Lock()
+	s.sessionID = sessionID
+	s.sequence = sequence
+	s.mu.Unlock()
+}
+
+func (s *GatewayConnectionManager) GetSessionInfo() (sessionID string, sequence int64) {
+	s.mu.RLock()
+	sessionID = s.sessionID
+	sequence = s.sequence
+	s.mu.RUnlock()
+
+	return
+}
+
 // Open is a helper for Session.GatewayConnectionManager.Open()
 func (s *Session) Open() error {
 	return s.GatewayManager.Open()
@@ -498,6 +514,11 @@ func (g *GatewayConnection) Close() error {
 			}
 			g.mu.Unlock()
 		}
+
+		g.mu.Lock()
+		sidCop = g.sessionID
+		seqCop = atomic.LoadInt64(g.heartbeater.sequence)
+		g.mu.Unlock()
 
 		g.manager.mu.Lock()
 		g.manager.sessionID = sidCop
