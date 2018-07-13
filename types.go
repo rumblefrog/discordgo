@@ -65,14 +65,14 @@ func (r RESTError) Error() string {
 type IDSlice []int64
 
 func (ids *IDSlice) UnmarshalJSON(data []byte) error {
-	if len(data) < 2 {
+	if len(data) < 3 {
 		return nil
 	}
 
 	// Split and strip away "[" "]"
 	split := strings.Split(string(data[1:len(data)-1]), ",")
-	*ids = make([]int64, len(split))
-	for i, s := range split {
+	*ids = make([]int64, 0, len(split))
+	for _, s := range split {
 		s = strings.TrimSpace(s)
 		if len(s) < 3 {
 			// Empty or invalid
@@ -84,7 +84,8 @@ func (ids *IDSlice) UnmarshalJSON(data []byte) error {
 		if err != nil {
 			return err
 		}
-		(*ids)[i] = parsed
+
+		*ids = append(*ids, parsed)
 	}
 
 	return nil
