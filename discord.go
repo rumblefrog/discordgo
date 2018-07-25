@@ -15,6 +15,7 @@ package discordgo
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"github.com/hashicorp/go-retryablehttp"
@@ -158,7 +159,7 @@ func New(args ...interface{}) (s *Session, err error) {
 	return
 }
 
-func CheckRetry(resp *http.Response, err error) (bool, error) {
+func CheckRetry(_ context.Context, resp *http.Response, err error) (bool, error) {
 	if err != nil {
 		return true, err
 	}
