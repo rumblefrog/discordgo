@@ -605,34 +605,30 @@ type GuildAuditLog struct {
 		Avatar    string `json:"avatar"`
 		Name      string `json:"name"`
 	} `json:"webhooks,omitempty"`
-	Users []struct {
-		Username      string `json:"username"`
-		Discriminator string `json:"discriminator"`
-		Bot           bool   `json:"bot"`
-		ID            int64  `json:"id,string"`
-		Avatar        string `json:"avatar"`
-	} `json:"users,omitempty"`
-	AuditLogEntries []struct {
-		TargetID int64 `json:"target_id,string"`
-		Changes  []struct {
-			NewValue interface{} `json:"new_value"`
-			OldValue interface{} `json:"old_value"`
-			Key      string      `json:"key"`
-		} `json:"changes,omitempty"`
-		UserID     int64 `json:"user_id,string"`
-		ID         int64 `json:"id,string"`
-		ActionType int   `json:"action_type"`
-		Options    struct {
-			DeleteMembersDay string `json:"delete_member_days"`
-			MembersRemoved   string `json:"members_removed"`
-			ChannelID        int64  `json:"channel_id,string"`
-			Count            string `json:"count"`
-			ID               int64  `json:"id,string"`
-			Type             string `json:"type"`
-			RoleName         string `json:"role_name"`
-		} `json:"options,omitempty"`
-		Reason string `json:"reason"`
-	} `json:"audit_log_entries"`
+	Users           []*User          `json:"users,omitempty"`
+	AuditLogEntries []*AuditLogEntry `json:"audit_log_entries"`
+}
+
+type AuditLogEntry struct {
+	TargetID int64 `json:"target_id,string"`
+	Changes  []struct {
+		NewValue interface{} `json:"new_value"`
+		OldValue interface{} `json:"old_value"`
+		Key      string      `json:"key"`
+	} `json:"changes,omitempty"`
+	UserID     int64 `json:"user_id,string"`
+	ID         int64 `json:"id,string"`
+	ActionType int   `json:"action_type"`
+	Options    struct {
+		DeleteMembersDay string `json:"delete_member_days"`
+		MembersRemoved   string `json:"members_removed"`
+		ChannelID        int64  `json:"channel_id,string"`
+		Count            string `json:"count"`
+		ID               int64  `json:"id,string"`
+		Type             string `json:"type"`
+		RoleName         string `json:"role_name"`
+	} `json:"options,omitempty"`
+	Reason string `json:"reason"`
 }
 
 // Block contains Discord Audit Log Action Types
