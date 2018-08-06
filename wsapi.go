@@ -16,7 +16,7 @@ type wsWriter struct {
 	conn           net.Conn
 	closer         chan interface{}
 	incoming       chan interface{}
-	sendCloseQueue chan ws.StatusCode
+	sendCloseQueue chan []byte
 
 	writer *wsutil.Writer
 }
@@ -29,8 +29,8 @@ func (w *wsWriter) Run() {
 		case <-w.closer:
 			select {
 			// Ensure we send the close frame
-			case code := <-w.sendCloseQueue:
-				w.sendClose(code)
+			case body := <-w.sendCloseQueue:
+				w.sendClose(body)
 			default:
 			}
 			return
@@ -47,8 +47,8 @@ func (w *wsWriter) Run() {
 				w.session.log(LogError, "Error writing to gateway: %s", err.Error())
 				return
 			}
-		case code := <-w.sendCloseQueue:
-			w.sendClose(code)
+		case body := <-w.sendCloseQueue:
+			w.sendClose(body)
 		}
 	}
 }
@@ -82,14 +82,8 @@ func (w *wsWriter) writeRaw(data []byte) error {
 	return w.writer.Flush()
 }
 
-func (w *wsWriter) sendClose(code ws.StatusCode) error {
-
-	d, err := ws.CompileFrame(ws.NewCloseFrame(code, ""))
-	if err != nil {
-		return err
-	}
-
-	_, err = w.conn.Write(d)
+func (w *wsWriter) sendClose(body []byte) error {
+	_, err := w.conn.Write(body)
 	return err
 }
 
@@ -101,11 +95,11 @@ func (w *wsWriter) Queue(data interface{}) {
 	}
 }
 
-func (w *wsWriter) QueueClose(code ws.StatusCode) {
+func (w *wsWriter) QueueClose(body []byte) {
 	select {
 	case <-time.After(time.Second * 10):
 	case <-w.closer:
-	case w.sendCloseQueue <- code:
+	case w.sendCloseQueue <- body:
 	}
 }
 

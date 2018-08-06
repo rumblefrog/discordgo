@@ -492,7 +492,7 @@ func (g *GatewayConnection) Close() error {
 
 	if wasRunning {
 		// Send the close frame
-		g.writer.QueueClose(ws.StatusNormalClosure)
+		g.writer.QueueClose(ws.CompiledCloseNormalClosure)
 
 		close(g.stopWorkers)
 
@@ -659,7 +659,7 @@ func (g *GatewayConnection) startWorkers() error {
 		session:        g.manager.session,
 		closer:         g.stopWorkers,
 		incoming:       make(chan interface{}),
-		sendCloseQueue: make(chan ws.StatusCode),
+		sendCloseQueue: make(chan []byte),
 	}
 	g.writer = writerWorker
 	go writerWorker.Run()
@@ -709,7 +709,7 @@ func (g *GatewayConnection) reader() {
 		for readAmount := int64(0); readAmount < header.Length; {
 
 			n, err := g.wsReader.Read(intermediateBuffer)
-			if err != nil {
+			if err != nil && (int64(n)+readAmount) != header.Length {
 				g.readerError(err, "error reading the next websocket frame into intermediate buffer (n %d, l %d, hl %d): %v", n, readAmount, header.Length, err)
 				return
 			}
