@@ -788,11 +788,11 @@ type WebhookParams struct {
 
 // MessageReaction stores the data for a message reaction.
 type MessageReaction struct {
-	UserID    int64  `json:"user_id,string"`
-	MessageID int64  `json:"message_id,string"`
-	Emoji     Emoji  `json:"emoji"`
-	ChannelID int64  `json:"channel_id,string"`
-	GuildID   string `json:"guild_id,string,omitempty"`
+	UserID    int64 `json:"user_id,string"`
+	MessageID int64 `json:"message_id,string"`
+	Emoji     Emoji `json:"emoji"`
+	ChannelID int64 `json:"channel_id,string"`
+	GuildID   int64 `json:"guild_id,string,omitempty"`
 }
 
 // GatewayBotResponse stores the data for the gateway/bot response
