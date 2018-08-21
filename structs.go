@@ -140,6 +140,10 @@ type Invite struct {
 	Revoked   bool      `json:"revoked"`
 	Temporary bool      `json:"temporary"`
 	Unique    bool      `json:"unique"`
+
+	// will only be filled when using InviteWithCounts
+	ApproximatePresenceCount int `json:"approximate_presence_count"`
+	ApproximateMemberCount   int `json:"approximate_member_count"`
 }
 
 // ChannelType is the type of a Channel
@@ -179,6 +183,9 @@ type Channel struct {
 	// Whether the channel is marked as NSFW.
 	NSFW bool `json:"nsfw"`
 
+	// Icon of the group DM channel.
+	Icon string `json:"icon"`
+
 	// The position of the channel, used for sorting in client.
 	Position int `json:"position"`
 
@@ -195,8 +202,16 @@ type Channel struct {
 	// A list of permission overwrites present for the channel.
 	PermissionOverwrites []*PermissionOverwrite `json:"permission_overwrites"`
 
+	// The user limit of the voice channel.
+	UserLimit int `json:"user_limit"`
+
 	// The ID of the parent channel, if the channel is under a category
 	ParentID int64 `json:"parent_id,string"`
+}
+
+// Mention returns a string which mentions the channel
+func (c *Channel) Mention() string {
+	return fmt.Sprintf("<#%s>", c.ID)
 }
 
 // A ChannelEdit holds Channel Feild data for a channel edit.
@@ -229,6 +244,19 @@ type Emoji struct {
 	Animated      bool    `json:"animated"`
 }
 
+// MessageFormat returns a correctly formatted Emoji for use in Message content and embeds
+func (e *Emoji) MessageFormat() string {
+	if e.ID != 0 && e.Name != "" {
+		if e.Animated {
+			return "<a:" + e.APIName() + ">"
+		}
+
+		return "<:" + e.APIName() + ">"
+	}
+
+	return e.APIName()
+}
+
 // APIName returns an correctly formatted API name for use in the MessageReactions endpoints.
 func (e *Emoji) APIName() string {
 	if e.ID != 0 && e.Name != "" {
@@ -249,6 +277,25 @@ const (
 	VerificationLevelLow
 	VerificationLevelMedium
 	VerificationLevelHigh
+)
+
+// ExplicitContentFilterLevel type definition
+type ExplicitContentFilterLevel int
+
+// Constants for ExplicitContentFilterLevel levels from 0 to 2 inclusive
+const (
+	ExplicitContentFilterDisabled ExplicitContentFilterLevel = iota
+	ExplicitContentFilterMembersWithoutRoles
+	ExplicitContentFilterAllMembers
+)
+
+// MfaLevel type definition
+type MfaLevel int
+
+// Constants for MfaLevel levels from 0 to 1 inclusive
+const (
+	MfaLevelNone MfaLevel = iota
+	MfaLevelElevated
 )
 
 // A Guild holds all data related to a specific Discord Guild.  Guilds are also
@@ -337,6 +384,24 @@ type Guild struct {
 	// This field is only present in GUILD_CREATE events and websocket
 	// update events, and thus is only present in state-cached guilds.
 	Unavailable bool `json:"unavailable"`
+
+	// The explicit content filter level
+	ExplicitContentFilter ExplicitContentFilterLevel `json:"explicit_content_filter"`
+
+	// The list of enabled guild features
+	Features []string `json:"features"`
+
+	// Required MFA level for the guild
+	MfaLevel MfaLevel `json:"mfa_level"`
+
+	// Whether or not the Server Widget is enabled
+	WidgetEnabled bool `json:"widget_enabled"`
+
+	// The Channel ID for the Server Widget
+	WidgetChannelID string `json:"widget_channel_id"`
+
+	// The Channel ID to which system messages are sent (eg join and leave messages)
+	SystemChannelID string `json:"system_channel_id"`
 }
 
 // A UserGuild holds a brief version of a Guild
@@ -723,10 +788,11 @@ type WebhookParams struct {
 
 // MessageReaction stores the data for a message reaction.
 type MessageReaction struct {
-	UserID    int64 `json:"user_id,string"`
-	MessageID int64 `json:"message_id,string"`
-	Emoji     Emoji `json:"emoji"`
-	ChannelID int64 `json:"channel_id,string"`
+	UserID    int64  `json:"user_id,string"`
+	MessageID int64  `json:"message_id,string"`
+	Emoji     Emoji  `json:"emoji"`
+	ChannelID int64  `json:"channel_id,string"`
+	GuildID   string `json:"guild_id,string,omitempty"`
 }
 
 // GatewayBotResponse stores the data for the gateway/bot response
@@ -822,6 +888,7 @@ const (
 	ErrCodeUnknownToken       = 10012
 	ErrCodeUnknownUser        = 10013
 	ErrCodeUnknownEmoji       = 10014
+	ErrCodeUnknownWebhook     = 10015
 
 	ErrCodeBotsCannotUseEndpoint  = 20001
 	ErrCodeOnlyBotsCanUseEndpoint = 20002

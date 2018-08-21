@@ -70,6 +70,7 @@ type ChannelDelete struct {
 type ChannelPinsUpdate struct {
 	LastPinTimestamp string `json:"last_pin_timestamp"`
 	ChannelID        int64  `json:"channel_id,string"`
+	GuildID          int64  `json:"guild_id,string,omitempty"`
 }
 
 // GuildCreate is the data for a GuildCreate event.
@@ -213,6 +214,7 @@ type TypingStart struct {
 	UserID    int64 `json:"user_id,string"`
 	ChannelID int64 `json:"channel_id,string"`
 	Timestamp int   `json:"timestamp"`
+	GuildID   int64 `json:"guild_id,string,omitempty"`
 }
 
 // UserUpdate is the data for a UserUpdate event.
@@ -250,4 +252,11 @@ type VoiceStateUpdate struct {
 type MessageDeleteBulk struct {
 	Messages  IDSlice `json:"ids,string"`
 	ChannelID int64   `json:"channel_id,string"`
+	GuildID   int64   `json:"guild_id,string"`
+}
+
+// WebhooksUpdate is the data for a WebhooksUpdate event
+type WebhooksUpdate struct {
+	GuildID   int64 `json:"guild_id,string"`
+	ChannelID int64 `json:"channel_id,string"`
 }

@@ -99,6 +99,9 @@ func (s *State) GuildAdd(guild *Guild) error {
 	if g, ok := s.guildMap[guild.ID]; ok {
 		// We are about to replace `g` in the state with `guild`, but first we need to
 		// make sure we preserve any fields that the `guild` doesn't contain from `g`.
+		if guild.MemberCount == 0 {
+			guild.MemberCount = g.MemberCount
+		}
 		if guild.Roles == nil {
 			guild.Roles = g.Roles
 		}
@@ -297,7 +300,12 @@ func (s *State) MemberAdd(member *Member) error {
 		members[member.User.ID] = member
 		guild.Members = append(guild.Members, member)
 	} else {
-		*m = *member // Update the actual data, which will also update the member pointer in the slice
+		// We are about to replace `m` in the state with `member`, but first we need to
+		// make sure we preserve any fields that the `member` doesn't contain from `m`.
+		if member.JoinedAt == "" {
+			member.JoinedAt = m.JoinedAt
+		}
+		*m = *member
 	}
 
 	return nil

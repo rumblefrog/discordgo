@@ -96,6 +96,8 @@ var (
 	EndpointGuildSplash    = func(gID int64, hash string) string { return EndpointCDNSplashes + StrID(gID) + "/" + hash + ".png" }
 	EndpointGuildWebhooks  = func(gID int64) string { return EndpointGuilds + StrID(gID) + "/webhooks" }
 	EndpointGuildAuditLogs = func(gID int64) string { return EndpointGuilds + StrID(gID) + "/audit-logs" }
+	EndpointGuildEmojis    = func(gID int64) string { return EndpointGuilds + StrID(gID) + "/emojis" }
+	EndpointGuildEmoji     = func(gID, eID int64) string { return EndpointGuilds + StrID(gID) + "/emojis/" + StrID(eID) }
 
 	EndpointChannel                   = func(cID int64) string { return EndpointChannels + StrID(cID) }
 	EndpointChannelPermissions        = func(cID int64) string { return EndpointChannels + StrID(cID) + "/permissions" }
@@ -140,7 +142,8 @@ var (
 
 	EndpointIntegrationsJoin = func(iID string) string { return EndpointAPI + "integrations/" + iID + "/join" }
 
-	EndpointEmoji = func(eID int64) string { return EndpointAPI + "emojis/" + StrID(eID) + ".png" }
+	EndpointEmoji         = func(eID int64) string { return EndpointAPI + "emojis/" + StrID(eID) + ".png" }
+	EndpointEmojiAnimated = func(eID int64) string { return EndpointAPI + "emojis/" + StrID(eID) + ".gif" }
 
 	EndpointOauth2          = EndpointAPI + "oauth2/"
 	EndpointApplications    = EndpointOauth2 + "applications"

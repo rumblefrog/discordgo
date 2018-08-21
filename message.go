@@ -39,6 +39,9 @@ type Message struct {
 	// The ID of the channel in which the message was sent.
 	ChannelID int64 `json:"channel_id,string"`
 
+	// The ID of the guild in which the message was sent.
+	GuildID string `json:"guild_id,omitempty"`
+
 	// The content of the message.
 	Content string `json:"content"`
 
