@@ -54,6 +54,14 @@ func registerInterfaceProvider(eh EventInterfaceProvider) {
 	return
 }
 
+func GetEventInterface(evtType string) interface{} {
+	if provider, ok := registeredInterfaceProviders[evtType]; ok {
+		return provider.New()
+	}
+
+	return nil
+}
+
 // eventHandlerInstance is a wrapper around an event handler, as functions
 // cannot be compared directly.
 type eventHandlerInstance struct {
