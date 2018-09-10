@@ -12,6 +12,7 @@ package discordgo
 import (
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/gorilla/websocket"
 	"golang.org/x/crypto/nacl/secretbox"
@@ -587,15 +588,21 @@ func (v *VoiceConnection) udpOpen() (err error) {
 	// of the response.  This should be our public IP and PORT as Discord
 	// saw us.
 	rb := make([]byte, 70)
-	rlen, _, err := v.udpConn.ReadFromUDP(rb)
+	rChan := v.udpReadBackground(rb)
+	select {
+	case <-time.After(time.Second * 5):
+		go func() {
+			// empty the channel
+			<-rChan
+		}()
+		v.log(LogError, "timed out waiting for handshake after 5 seconds")
+		return
+	case err = <-rChan:
+	}
+
 	if err != nil {
 		v.log(LogWarning, "udp read error, %s, %s", addr.String(), err)
 		return
-	}
-
-	if rlen < 70 {
-		v.log(LogWarning, "received udp packet too small")
-		return fmt.Errorf("received udp packet too small")
 	}
 
 	// Loop over position 4 through 20 to grab the IP address
@@ -628,6 +635,27 @@ func (v *VoiceConnection) udpOpen() (err error) {
 	// TODO: find a way to check that it fired off okay
 
 	return
+}
+
+func (v *VoiceConnection) udpReadBackground(dstBuf []byte) chan error {
+	c := make(chan error)
+	go func() {
+
+		rlen, _, err := v.udpConn.ReadFromUDP(dstBuf)
+		if err != nil {
+			c <- err
+			return
+		}
+
+		if rlen < len(dstBuf) {
+			c <- errors.New("received udp packet too small")
+			return
+		}
+
+		c <- nil
+	}()
+
+	return c
 }
 
 // udpKeepAlive sends a udp packet to keep the udp connection open
