@@ -64,6 +64,23 @@ const (
 	GatewayStatusReady
 )
 
+func (gs GatewayStatus) String() string {
+	switch gs {
+	case GatewayStatusDisconnected:
+		return "Disconnected"
+	case GatewayStatusConnecting:
+		return "Connecting"
+	case GatewayStatusIdentifying:
+		return "Identifying"
+	case GatewayStatusResuming:
+		return "Resuming"
+	case GatewayStatusReady:
+		return "Ready"
+	}
+
+	return "??"
+}
+
 // GatewayConnectionManager is responsible for managing the gateway connections for a single shard
 // We create a new GatewayConnection every time we reconnect to avoid a lot of synchronization needs
 // and also to avoid having to manually reset the connection state, all the workers related to the old connection
