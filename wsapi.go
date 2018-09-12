@@ -53,17 +53,6 @@ func (w *wsWriter) Run() {
 	}
 }
 
-type requestGuildMembersData struct {
-	GuildID int64  `json:"guild_id,string"`
-	Query   string `json:"query"`
-	Limit   int    `json:"limit"`
-}
-
-type requestGuildMembersOp struct {
-	Op   int                     `json:"op"`
-	Data requestGuildMembersData `json:"d"`
-}
-
 func (w *wsWriter) writeJson(data interface{}) error {
 	serialized, err := json.Marshal(data)
 	if err != nil {

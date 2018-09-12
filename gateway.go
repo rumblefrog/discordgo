@@ -214,6 +214,17 @@ func (g *GatewayConnectionManager) HeartBeatStats() (lastSend time.Time, lastAck
 	return
 }
 
+func (g *GatewayConnectionManager) RequestGuildMembers(guildID int64, query string, limit int) {
+	g.mu.RLock()
+	conn := g.currentConnection
+	g.mu.RUnlock()
+	if conn == nil {
+		return
+	}
+
+	conn.RequestGuildMembers(guildID, query, limit)
+}
+
 type voiceChannelJoinData struct {
 	GuildID   *string `json:"guild_id"`
 	ChannelID *string `json:"channel_id"`
@@ -1022,6 +1033,21 @@ func (g *GatewayConnection) resume(sessionID string, sequence int64) error {
 	return nil
 }
 
+func (g *GatewayConnection) RequestGuildMembers(guildID int64, query string, limit int) {
+	op := &outgoingEvent{
+		Operation: GatewayOPRequestGuildMembers,
+		Data: &requestGuildMembersData{
+			GuildID: guildID,
+			Query:   query,
+			Limit:   limit,
+		},
+	}
+
+	g.log(LogInformational, "Sending request guild members")
+
+	g.writer.Queue(op)
+}
+
 func (g *GatewayConnection) onError(err error, msgf string, args ...interface{}) {
 	g.log(LogError, "%s: %s", fmt.Sprintf(msgf, args...), err.Error())
 	if err := g.ReconnectUnlessClosed(false); err != nil {
@@ -1076,4 +1102,10 @@ type UpdateStatusData struct {
 	Game      *Game  `json:"game"`
 	AFK       bool   `json:"afk"`
 	Status    string `json:"status"`
+}
+
+type requestGuildMembersData struct {
+	GuildID int64  `json:"guild_id,string"`
+	Query   string `json:"query"`
+	Limit   int    `json:"limit"`
 }
