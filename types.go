@@ -129,3 +129,47 @@ func (emoji EmojiName) String() string {
 	// Discord does not accept the emoji qualifier character.
 	return strings.Replace(emoji.string, "\uFE0F", "", 1)
 }
+
+// Discord is super inconsistent with with types in some places (especially presence updates,
+// might aswell change them to map[string]interface{} soon because there is 0 validation)
+type DiscordFloat float64
+
+func (df *DiscordFloat) UnmarshalJSON(data []byte) error {
+	var dst json.Number
+	err := json.Unmarshal(data, &dst)
+	if err != nil {
+		return err
+	}
+
+	parsed, err := dst.Float64()
+	if err != nil {
+		return err
+	}
+
+	*df = DiscordFloat(parsed)
+	return nil
+}
+
+type DiscordInt64 int64
+
+func (di *DiscordInt64) UnmarshalJSON(data []byte) error {
+	var dst json.Number
+	err := json.Unmarshal(data, &dst)
+	if err != nil {
+		return err
+	}
+
+	parsed, err := dst.Int64()
+	if err != nil {
+		// Attempt to fallback to float, we lost some precision but eh, what can you do when discord is so freaking inconsistent
+		f, err := dst.Float64()
+		if err != nil {
+			return err
+		}
+		*di = DiscordInt64(int64(f))
+		return nil
+	}
+
+	*di = DiscordInt64(parsed)
+	return nil
+}

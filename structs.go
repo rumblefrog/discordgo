@@ -491,12 +491,12 @@ type VoiceState struct {
 
 // A Presence stores the online, offline, or idle and game status of Guild members.
 type Presence struct {
-	User   *User   `json:"user"`
-	Status Status  `json:"status"`
-	Game   *Game   `json:"game"`
-	Nick   string  `json:"nick"`
-	Roles  IDSlice `json:"roles,string"`
-	Since  *int    `json:"since"`
+	User   *User         `json:"user"`
+	Status Status        `json:"status"`
+	Game   *Game         `json:"game"`
+	Nick   string        `json:"nick"`
+	Roles  IDSlice       `json:"roles,string"`
+	Since  *DiscordInt64 `json:"since"`
 }
 
 // GameType is the type of "game" (see GameType* consts) in the Game struct
@@ -533,15 +533,32 @@ type TimeStamps struct {
 // UnmarshalJSON unmarshals JSON into TimeStamps struct
 func (t *TimeStamps) UnmarshalJSON(b []byte) error {
 	temp := struct {
-		End   float64 `json:"end,omitempty"`
-		Start float64 `json:"start,omitempty"`
+		End   json.Number `json:"end,omitempty"`
+		Start json.Number `json:"start,omitempty"`
 	}{}
 	err := json.Unmarshal(b, &temp)
 	if err != nil {
 		return err
 	}
-	t.EndTimestamp = int64(temp.End)
-	t.StartTimestamp = int64(temp.Start)
+
+	var endParsed float64
+	if temp.End != "" {
+		endParsed, err = temp.End.Float64()
+		if err != nil {
+			return err
+		}
+	}
+
+	var startParsed float64
+	if temp.Start != "" {
+		startParsed, err = temp.Start.Float64()
+		if err != nil {
+			return err
+		}
+	}
+
+	t.EndTimestamp = int64(endParsed)
+	t.StartTimestamp = int64(startParsed)
 	return nil
 }
 
