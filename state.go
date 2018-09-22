@@ -214,9 +214,6 @@ func (s *State) PresenceAdd(guildID int64, presence *Presence) error {
 			if presence.User.Discriminator != "" {
 				guild.Presences[i].User.Discriminator = presence.User.Discriminator
 			}
-			if presence.User.Email != "" {
-				guild.Presences[i].User.Email = presence.User.Email
-			}
 			if presence.User.Username != "" {
 				guild.Presences[i].User.Username = presence.User.Username
 			}

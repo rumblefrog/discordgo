@@ -10,10 +10,6 @@ type User struct {
 	// The ID of the user.
 	ID int64 `json:"id,string"`
 
-	// The email of the user. This is only present when
-	// the application possesses the email scope for the user.
-	Email string `json:"email"`
-
 	// The user's username.
 	Username string `json:"username"`
 
@@ -26,12 +22,6 @@ type User struct {
 
 	// The discriminator of the user (4 numbers after name).
 	Discriminator string `json:"discriminator"`
-
-	// Whether the user's email is verified.
-	Verified bool `json:"verified"`
-
-	// Whether the user has multi-factor authentication enabled.
-	MFAEnabled bool `json:"mfa_enabled"`
 
 	// Whether the user is a bot.
 	Bot bool `json:"bot"`
