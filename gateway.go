@@ -35,6 +35,36 @@ var (
 	ErrAlreadyOpen = errors.New("Connection already open")
 )
 
+// GatewayIdentifyRatelimiter is if you need some custom identify ratelimit logic (if you're running shards across processes for example)
+type GatewayIdentifyRatelimiter interface {
+	RatelimitIdentify() // Called whenever an attempted identify is made, can be called from multiple goroutines at the same time
+}
+
+// Standard implementation of the GatewayIdentifyRatelimiter
+type StdGatewayIdentifyRatleimiter struct {
+	ch   chan bool
+	once sync.Once
+}
+
+func (rl *StdGatewayIdentifyRatleimiter) RatelimitIdentify() {
+	rl.once.Do(func() {
+		rl.ch = make(chan bool)
+		go func() {
+			ticker := time.NewTicker(time.Second * 5)
+			for {
+				rl.ch <- true
+				<-ticker.C
+			}
+		}()
+	})
+
+	<-rl.ch
+}
+
+// This is used at the package level because it can be used by multiple sessions
+// !! Changing this after starting 1 or more gateway sessions will lead to undefined behaviour
+var IdentifyRatelimiter GatewayIdentifyRatelimiter = &StdGatewayIdentifyRatleimiter{}
+
 // GatewayOP represents a gateway operation
 // see https://discordapp.com/developers/docs/topics/gateway#gateway-opcodespayloads-gateway-opcodes
 type GatewayOP int
@@ -1000,6 +1030,8 @@ func (g *GatewayConnection) identify() error {
 		Operation: 2,
 		Data:      data,
 	}
+
+	IdentifyRatelimiter.RatelimitIdentify()
 
 	g.log(LogInformational, "Sending identify")
 
