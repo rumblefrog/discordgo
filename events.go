@@ -1,7 +1,7 @@
 package discordgo
 
 import (
-	"github.com/francoispqt/gojay"
+	"github.com/jonas747/gojay"
 )
 
 // This file contains all the possible structs that can be
