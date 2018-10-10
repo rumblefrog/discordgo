@@ -319,6 +319,14 @@ func (g *GatewayConnectionManager) ChannelVoiceJoin(gID, cID int64, mute, deaf b
 	if err != nil {
 		cc.log(LogWarning, "error waiting for voice to connect, %s", err)
 		voice.Close()
+
+		// force remove it just incase
+		g.mu.Lock()
+		if g.voiceConnections[gID] == voice {
+			delete(g.voiceConnections, gID)
+		}
+		g.mu.Unlock()
+
 		return
 	}
 
