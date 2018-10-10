@@ -449,8 +449,10 @@ type GatewayConnection struct {
 	// contains the raw message fragments until we have received them all
 	readMessageBuffer *bytes.Buffer
 
-	zlibReader  io.Reader
-	jsonDecoder *gojay.Decoder
+	zlibReader            io.Reader
+	jsonDecoder           *gojay.Decoder
+	secondPassJsonDecoder *json.Decoder
+	secondPassBuf         *bytes.Buffer
 
 	heartbeater *wsHeartBeater
 	writer      *wsWriter
@@ -464,14 +466,19 @@ type GatewayConnection struct {
 }
 
 func NewGatewayConnection(parent *GatewayConnectionManager, id int) *GatewayConnection {
-	return &GatewayConnection{
+	gwc := &GatewayConnection{
 		manager:           parent,
 		stopWorkers:       make(chan interface{}),
 		readMessageBuffer: bytes.NewBuffer(make([]byte, 0, 0xffff)), // initial 65k buffer
 		connID:            id,
 		status:            GatewayStatusConnecting,
 		event:             &Event{},
+		secondPassBuf:     &bytes.Buffer{},
 	}
+
+	secondPassJson := json.NewDecoder(gwc.secondPassBuf)
+	gwc.secondPassJsonDecoder = secondPassJson
+	return gwc
 }
 
 func (g *GatewayConnection) concurrentReconnect(forceReIdentify bool) {
@@ -965,8 +972,10 @@ func (g *GatewayConnection) handleDispatch(e *Event) error {
 	if eh, ok := registeredInterfaceProviders[e.Type]; ok {
 		e.Struct = eh.New()
 
+		g.secondPassBuf.Write(e.RawData)
+
 		// Attempt to unmarshal our event.
-		if err := json.Unmarshal(e.RawData, e.Struct); err != nil {
+		if err := g.secondPassJsonDecoder.Decode(e.Struct); err != nil {
 			g.log(LogError, "error unmarshalling %s event, %s", e.Type, err)
 		}
 
@@ -989,7 +998,7 @@ func (g *GatewayConnection) handleDispatch(e *Event) error {
 	}
 
 	// For legacy reasons, we send the raw event also, this could be useful for handling unknown events.
-	// I've disabled this because i've dubbed it useless
+	// Jonas: I've disabled this because i've dubbed it useless
 	// g.manager.session.handleEvent(eventEventType, e)
 
 	return nil
