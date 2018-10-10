@@ -1,7 +1,7 @@
 package discordgo
 
 import (
-	"encoding/json"
+	"github.com/francoispqt/gojay"
 )
 
 // This file contains all the possible structs that can be
@@ -25,13 +25,37 @@ type RateLimit struct {
 }
 
 // Event provides a basic initial struct for all websocket events.
+//easyjson:json
 type Event struct {
-	Operation GatewayOP       `json:"op"`
-	Sequence  int64           `json:"s"`
-	Type      string          `json:"t"`
-	RawData   json.RawMessage `json:"d"`
+	Operation GatewayOP          `json:"op"`
+	Sequence  int64              `json:"s"`
+	Type      string             `json:"t"`
+	RawData   gojay.EmbeddedJSON `json:"d"`
 	// Struct contains one of the other types in this file.
 	Struct interface{} `json:"-"`
+}
+
+// implement gojay.UnmarshalerJSONObject
+func (evt *Event) UnmarshalJSONObject(dec *gojay.Decoder, key string) error {
+	switch key {
+	case "op":
+		return dec.Int((*int)(&evt.Operation))
+	case "s":
+		return dec.Int64(&evt.Sequence)
+	case "t":
+		return dec.String(&evt.Type)
+	case "d":
+		if evt.RawData != nil {
+			evt.RawData = evt.RawData[:0]
+		}
+		return dec.AddEmbeddedJSON(&evt.RawData)
+	}
+
+	return nil
+}
+
+func (evt *Event) NKeys() int {
+	return 0
 }
 
 // A Ready stores all data for the websocket READY event.

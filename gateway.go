@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/francoispqt/gojay"
 	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsutil"
 	"io"
@@ -449,7 +450,7 @@ type GatewayConnection struct {
 	readMessageBuffer *bytes.Buffer
 
 	zlibReader  io.Reader
-	jsonDecoder *json.Decoder
+	jsonDecoder *gojay.Decoder
 
 	heartbeater *wsHeartBeater
 	writer      *wsWriter
@@ -457,6 +458,9 @@ type GatewayConnection struct {
 	connID int // A increasing id per connection from the connection manager to help identify the origin of logs
 
 	decodedBuffer bytes.Buffer
+
+	// so we dont need to re-allocate a event on each event
+	event *Event
 }
 
 func NewGatewayConnection(parent *GatewayConnectionManager, id int) *GatewayConnection {
@@ -466,6 +470,7 @@ func NewGatewayConnection(parent *GatewayConnectionManager, id int) *GatewayConn
 		readMessageBuffer: bytes.NewBuffer(make([]byte, 0, 0xffff)), // initial 65k buffer
 		connID:            id,
 		status:            GatewayStatusConnecting,
+		event:             &Event{},
 	}
 }
 
@@ -881,13 +886,12 @@ func (g *GatewayConnection) handleReadMessage() {
 
 		teeReader := io.TeeReader(zr, &g.decodedBuffer)
 
-		g.jsonDecoder = json.NewDecoder(teeReader)
+		g.jsonDecoder = gojay.NewDecoder(teeReader)
 	}
 
 	defer g.decodedBuffer.Reset()
 
-	var event *Event
-	err := g.jsonDecoder.Decode(&event)
+	err := g.jsonDecoder.Decode(g.event)
 	// g.log(LogInformational, "%s", g.decodedBuffer.String())
 	if err != nil {
 		go g.onError(err, "failed decoding incoming gateway event: %s", g.decodedBuffer.String())
@@ -898,7 +902,7 @@ func (g *GatewayConnection) handleReadMessage() {
 		return
 	}
 
-	g.handleEvent(event)
+	g.handleEvent(g.event)
 }
 
 // handleEvent handles a event received from the reader
@@ -985,7 +989,8 @@ func (g *GatewayConnection) handleDispatch(e *Event) error {
 	}
 
 	// For legacy reasons, we send the raw event also, this could be useful for handling unknown events.
-	g.manager.session.handleEvent(eventEventType, e)
+	// I've disabled this because i've dubbed it useless
+	// g.manager.session.handleEvent(eventEventType, e)
 
 	return nil
 }
