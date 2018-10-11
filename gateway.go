@@ -333,6 +333,24 @@ func (g *GatewayConnectionManager) ChannelVoiceJoin(gID, cID int64, mute, deaf b
 	return
 }
 
+func (g *GatewayConnectionManager) ChannelVoiceLeave(gID int64) {
+	g.mu.RLock()
+	cc := g.currentConnection
+	g.mu.RUnlock()
+
+	if cc == nil {
+		return
+	}
+
+	strGID := strconv.FormatInt(gID, 10)
+	data := outgoingEvent{
+		Operation: GatewayOPVoiceStateUpdate,
+		Data:      voiceChannelJoinData{&strGID, nil, true, true},
+	}
+
+	cc.writer.Queue(data)
+}
+
 // onVoiceStateUpdate handles Voice State Update events on the data websocket.
 func (g *GatewayConnectionManager) onVoiceStateUpdate(st *VoiceStateUpdate) {
 
