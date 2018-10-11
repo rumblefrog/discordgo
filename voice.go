@@ -15,6 +15,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/gorilla/websocket"
+	"github.com/jonas747/gojay"
 	"golang.org/x/crypto/nacl/secretbox"
 	"net"
 	"strings"
@@ -393,7 +394,7 @@ func (v *VoiceConnection) onEvent(message []byte) {
 	v.log(LogDebug, "received: %s", string(message))
 
 	var e Event
-	if err := json.Unmarshal(message, &e); err != nil {
+	if err := gojay.UnmarshalJSONObject(message, &e); err != nil {
 		v.log(LogError, "unmarshall error, %s", err)
 		return
 	}
