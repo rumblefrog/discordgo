@@ -19,9 +19,14 @@ type wsWriter struct {
 	sendCloseQueue chan []byte
 
 	writer *wsutil.Writer
+
+	sendRatelimiter chan bool
 }
 
 func (w *wsWriter) Run() {
+	w.sendRatelimiter = make(chan bool)
+	go w.runSendRatelimiter()
+
 	w.writer = wsutil.NewWriter(w.conn, ws.StateClientSide, ws.OpText)
 
 	for {
@@ -53,6 +58,27 @@ func (w *wsWriter) Run() {
 	}
 }
 
+func (w *wsWriter) runSendRatelimiter() {
+	tc := time.NewTicker(time.Millisecond * 500)
+	defer tc.Stop()
+	defer func() {
+		close(w.sendRatelimiter)
+	}()
+
+	for {
+		select {
+		case <-tc.C:
+			select {
+			case w.sendRatelimiter <- true:
+			case <-w.closer:
+				return
+			}
+		case <-w.closer:
+			return
+		}
+	}
+}
+
 func (w *wsWriter) writeJson(data interface{}) error {
 	serialized, err := json.Marshal(data)
 	if err != nil {
@@ -63,6 +89,8 @@ func (w *wsWriter) writeJson(data interface{}) error {
 }
 
 func (w *wsWriter) writeRaw(data []byte) error {
+	<-w.sendRatelimiter
+
 	_, err := w.writer.WriteThrough(data)
 	if err != nil {
 		return err
