@@ -780,10 +780,6 @@ func (g *GatewayConnection) reader() {
 			return
 		}
 
-		if !header.Fin {
-			panic("welp should handle this")
-		}
-
 		for readAmount := int64(0); readAmount < header.Length; {
 
 			n, err := g.wsReader.Read(intermediateBuffer)
@@ -798,6 +794,10 @@ func (g *GatewayConnection) reader() {
 			}
 
 			readAmount += int64(n)
+		}
+
+		if !header.Fin {
+			continue // read the rest
 		}
 
 		g.handleReadFrame(header)
@@ -852,8 +852,6 @@ func (g *GatewayConnection) handleReadFrame(header ws.Header) {
 
 	if !bytes.Equal(tail, endOfPacketSuffix) {
 		g.log(LogInformational, "Not the end %d", len(tail))
-		// Not the end of the packet
-		panic("Yaboi")
 		return
 	}
 
@@ -910,10 +908,6 @@ func (g *GatewayConnection) handleReadMessage() {
 	// g.log(LogInformational, "%s", g.decodedBuffer.String())
 	if err != nil {
 		go g.onError(err, "failed decoding incoming gateway event: %s", g.decodedBuffer.String())
-		go func() {
-			time.Sleep(time.Second * 3)
-			panic("aa")
-		}()
 		return
 	}
 
@@ -1006,7 +1000,8 @@ func (g *GatewayConnection) handleDispatch(e *Event) error {
 	}
 
 	// For legacy reasons, we send the raw event also, this could be useful for handling unknown events.
-	// Jonas: I've disabled this because i've dubbed it useless
+	// Jonas: I've disabled this because i've dubbed it useless, events should be added in the library, handling unknown events elsewhere is added uneeded complexity
+	// also we reuse the event object now so we can't
 	// g.manager.session.handleEvent(eventEventType, e)
 
 	return nil
