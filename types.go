@@ -127,7 +127,9 @@ func (emoji EmojiName) String() string {
 		emoji.string = codepoint
 	}
 	// Discord does not accept the emoji qualifier character.
-	return strings.Replace(emoji.string, "\uFE0F", "", 1)
+	// return strings.Replace(emoji.string, "\uFE0F", "", 1)
+	// this no longer the case? in fact its required?
+	return emoji.string
 }
 
 // Discord is super inconsistent with with types in some places (especially presence updates,
