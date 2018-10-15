@@ -33,9 +33,9 @@ func NewRatelimiter() *RateLimiter {
 		global:  new(int64),
 		customRateLimits: []*customRateLimit{
 			&customRateLimit{
-				suffix:   "//reactions//",
+				suffix:   "/reactions//",
 				requests: 1,
-				reset:    200 * time.Millisecond,
+				reset:    250 * time.Millisecond,
 			},
 		},
 	}
