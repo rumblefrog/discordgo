@@ -36,6 +36,9 @@ var (
 	ErrAlreadyOpen = errors.New("Connection already open")
 )
 
+// max size of buffers before they're discarded (e.g after a big incmoing event)
+const MaxIntermediaryBuffersSize = 100000
+
 // GatewayIdentifyRatelimiter is if you need some custom identify ratelimit logic (if you're running shards across processes for example)
 type GatewayIdentifyRatelimiter interface {
 	RatelimitIdentify() // Called whenever an attempted identify is made, can be called from multiple goroutines at the same time
@@ -477,6 +480,7 @@ type GatewayConnection struct {
 
 	zlibReader            io.Reader
 	jsonDecoder           *gojay.Decoder
+	teeReader             io.Reader
 	secondPassJsonDecoder *json.Decoder
 	secondPassBuf         *bytes.Buffer
 
@@ -915,9 +919,8 @@ func (g *GatewayConnection) handleReadMessage() {
 
 		g.zlibReader = zr
 
-		teeReader := io.TeeReader(zr, &g.decodedBuffer)
-
-		g.jsonDecoder = gojay.NewDecoder(teeReader)
+		g.teeReader = io.TeeReader(zr, &g.decodedBuffer)
+		g.jsonDecoder = gojay.NewDecoder(g.teeReader)
 	}
 
 	defer g.decodedBuffer.Reset()
@@ -928,6 +931,13 @@ func (g *GatewayConnection) handleReadMessage() {
 		go g.onError(err, "failed decoding incoming gateway event: %s", g.decodedBuffer.String())
 		return
 	}
+
+	if g.decodedBuffer.Cap() > MaxIntermediaryBuffersSize {
+		maybeThrowawayBytesBuf(&g.decodedBuffer, MaxIntermediaryBuffersSize)
+		g.jsonDecoder = gojay.NewDecoder(g.teeReader)
+	}
+
+	maybeThrowawayBytesBuf(g.readMessageBuffer, MaxIntermediaryBuffersSize)
 
 	g.handleEvent(g.event)
 }
@@ -1017,12 +1027,25 @@ func (g *GatewayConnection) handleDispatch(e *Event) error {
 		g.log(LogWarning, "unknown event: Op: %d, Seq: %d, Type: %s, Data: %s", e.Operation, e.Sequence, e.Type, string(e.RawData))
 	}
 
+	if g.secondPassBuf.Cap() > MaxIntermediaryBuffersSize {
+		g.secondPassJsonDecoder = json.NewDecoder(g.secondPassBuf)
+		maybeThrowawayBytesBuf(g.secondPassBuf, MaxIntermediaryBuffersSize)
+	}
+
 	// For legacy reasons, we send the raw event also, this could be useful for handling unknown events.
 	// Jonas: I've disabled this because i've dubbed it useless, events should be added in the library, handling unknown events elsewhere is added uneeded complexity
 	// also we reuse the event object now so we can't
 	// g.manager.session.handleEvent(eventEventType, e)
 
 	return nil
+}
+
+// maybeThrowawayBytesBuf will recreate b if the capacity is above maxSize
+// usefull because sometimes buffers only need to be big for a single event, then its kinda pointless to keep them around forever
+func maybeThrowawayBytesBuf(b *bytes.Buffer, maxSize int) {
+	if b.Cap() > maxSize {
+		*b = bytes.Buffer{}
+	}
 }
 
 func (g *GatewayConnection) handleReady(r *Ready) {

@@ -105,6 +105,11 @@ func (r *RateLimiter) LockBucket(bucketID string) *Bucket {
 // LockBucketObject Locks an already resolved bucket until a request can be made
 func (r *RateLimiter) LockBucketObject(b *Bucket) *Bucket {
 	b.Lock()
+
+	if wait := r.GetWaitTime(b, 1); wait > 0 {
+		time.Sleep(wait)
+	}
+
 	if r.MaxConcurrentRequests > 0 {
 		// sleep until were below the maximum
 		for {
@@ -116,10 +121,6 @@ func (r *RateLimiter) LockBucketObject(b *Bucket) *Bucket {
 				break
 			}
 		}
-	}
-
-	if wait := r.GetWaitTime(b, 1); wait > 0 {
-		time.Sleep(wait)
 	}
 
 	b.Remaining--

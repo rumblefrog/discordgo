@@ -48,6 +48,10 @@ func (evt *Event) UnmarshalJSONObject(dec *gojay.Decoder, key string) error {
 		if evt.RawData != nil {
 			evt.RawData = evt.RawData[:0]
 		}
+		if cap(evt.RawData) > 1000000 {
+			evt.RawData = nil
+		}
+
 		return dec.AddEmbeddedJSON(&evt.RawData)
 	}
 
