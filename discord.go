@@ -14,7 +14,6 @@
 package discordgo
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -74,7 +73,7 @@ func New(args ...interface{}) (s *Session, err error) {
 
 	s.Client.CheckRetry = CheckRetry
 	s.Client.RetryMax = 10
-	s.Client.Logger.SetOutput(&retryableLogger{})
+	s.Client.Logger = &retryableLogger{}
 
 	// If no arguments are passed return the empty Session interface.
 	if args == nil {
@@ -169,18 +168,18 @@ func CheckRetry(_ context.Context, resp *http.Response, err error) (bool, error)
 
 type retryableLogger struct{}
 
-func (r *retryableLogger) Write(b []byte) (n int, err error) {
-	if bytes.Contains(b, []byte("[DEBUG]")) {
-		return len(b), nil
+func (r *retryableLogger) Printf(format string, args ...interface{}) {
+	s := fmt.Sprintf(format, args...)
+
+	if strings.Contains(s, "[DEBUG]") {
+		return
 	}
 
-	s := string(b)
 	if strings.HasSuffix(s, "\n") {
 		s = s[:len(s)-1]
 	}
 
 	log.Println(s)
-	return len(b), nil
 }
 
 func StrID(id int64) string {
