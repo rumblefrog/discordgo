@@ -611,6 +611,8 @@ func (g *GatewayConnection) Close() error {
 			if time.Since(started) > time.Second*5 {
 				g.log(LogWarning, "dead connection")
 				g.conn.Close()
+				g.mu.Unlock()
+				break
 			}
 			g.mu.Unlock()
 		}
