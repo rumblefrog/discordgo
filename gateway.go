@@ -955,7 +955,7 @@ func (g *GatewayConnection) handleEvent(event *Event) {
 		err = g.handleDispatch(event)
 	case GatewayOPHeartbeat:
 		g.log(LogInformational, "sending heartbeat immediately in response to OP1")
-		g.heartbeater.SendBeat()
+		go g.heartbeater.SendBeat()
 	case GatewayOPReconnect:
 		g.log(LogWarning, "got OP7 reconnect, re-connecting.")
 		g.concurrentReconnect(false)
