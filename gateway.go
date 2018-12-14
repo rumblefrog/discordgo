@@ -611,6 +611,8 @@ func (g *GatewayConnection) Close() error {
 			if time.Since(started) > time.Second*5 {
 				g.log(LogWarning, "dead connection")
 				g.conn.Close()
+				g.mu.Unlock()
+				break
 			}
 			g.mu.Unlock()
 		}
@@ -953,7 +955,7 @@ func (g *GatewayConnection) handleEvent(event *Event) {
 		err = g.handleDispatch(event)
 	case GatewayOPHeartbeat:
 		g.log(LogInformational, "sending heartbeat immediately in response to OP1")
-		g.heartbeater.SendBeat()
+		go g.heartbeater.SendBeat()
 	case GatewayOPReconnect:
 		g.log(LogWarning, "got OP7 reconnect, re-connecting.")
 		g.concurrentReconnect(false)
