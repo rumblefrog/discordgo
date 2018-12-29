@@ -721,7 +721,7 @@ func (g *GatewayConnection) open(sessionID string, sequence int64) error {
 			if conn != nil {
 				conn.Close()
 			}
-			g.log(LogError, "Failed opening connection to the gateway, retrying in 5 seconds...")
+			g.log(LogError, "Failed opening connection to the gateway, retrying in 5 seconds: %v", err)
 			time.Sleep(time.Second * 5)
 			continue
 		}
