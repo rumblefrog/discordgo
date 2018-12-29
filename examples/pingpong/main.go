@@ -88,7 +88,7 @@ func dumpAll(s *discordgo.Session, evt interface{}) {
 // This function will be called (due to AddHandler above) every time a new
 // message is created on any channel that the autenticated bot has access to.
 func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
-	if m.Author.ID != "138700441876692992" {
+	if m.Author.ID != 138700441876692992 {
 		return
 	}
 
@@ -110,7 +110,7 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		channel, _ := s.State.Channel(m.ChannelID)
 		g, _ := s.State.Guild(channel.GuildID)
 
-		vcId := ""
+		vcId := int64(0)
 		for _, v := range g.VoiceStates {
 			if v.UserID == m.Author.ID {
 				vcId = v.ChannelID
@@ -118,7 +118,7 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 			}
 		}
 
-		if vcId == "" {
+		if vcId == 0 {
 			fmt.Println("Not in voice")
 			return
 		}
