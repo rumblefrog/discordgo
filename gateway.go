@@ -120,7 +120,8 @@ func (gs GatewayStatus) String() string {
 // and also to avoid having to manually reset the connection state, all the workers related to the old connection
 // should eventually stop, and if they're late they will be working on a closed connection anyways so it dosen't matter
 type GatewayConnectionManager struct {
-	mu sync.RWMutex
+	mu     sync.RWMutex
+	openmu sync.Mutex
 
 	voiceConnections map[int64]*VoiceConnection
 
@@ -164,6 +165,9 @@ func (s *Session) Open() error {
 func (g *GatewayConnectionManager) Open() error {
 	g.session.log(LogInformational, " called")
 
+	g.openmu.Lock()
+	defer g.openmu.Unlock()
+
 	g.mu.Lock()
 	if g.currentConnection != nil {
 		cc := g.currentConnection
@@ -189,7 +193,11 @@ func (g *GatewayConnectionManager) Open() error {
 
 	newConn := NewGatewayConnection(g, g.idCounter)
 
+	// Opening may be a long process, with ratelimiting and whatnot
+	// we wanna be able to query things like status in the meantime
+	g.mu.Unlock()
 	err := newConn.open(g.sessionID, g.sequence)
+	g.mu.Lock()
 
 	g.currentConnection = newConn
 
