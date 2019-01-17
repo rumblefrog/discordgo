@@ -120,7 +120,8 @@ func (gs GatewayStatus) String() string {
 // and also to avoid having to manually reset the connection state, all the workers related to the old connection
 // should eventually stop, and if they're late they will be working on a closed connection anyways so it dosen't matter
 type GatewayConnectionManager struct {
-	mu sync.RWMutex
+	mu     sync.RWMutex
+	openmu sync.Mutex
 
 	voiceConnections map[int64]*VoiceConnection
 
@@ -164,6 +165,9 @@ func (s *Session) Open() error {
 func (g *GatewayConnectionManager) Open() error {
 	g.session.log(LogInformational, " called")
 
+	g.openmu.Lock()
+	defer g.openmu.Unlock()
+
 	g.mu.Lock()
 	if g.currentConnection != nil {
 		cc := g.currentConnection
@@ -189,7 +193,11 @@ func (g *GatewayConnectionManager) Open() error {
 
 	newConn := NewGatewayConnection(g, g.idCounter)
 
+	// Opening may be a long process, with ratelimiting and whatnot
+	// we wanna be able to query things like status in the meantime
+	g.mu.Unlock()
 	err := newConn.open(g.sessionID, g.sequence)
+	g.mu.Lock()
 
 	g.currentConnection = newConn
 
@@ -721,7 +729,7 @@ func (g *GatewayConnection) open(sessionID string, sequence int64) error {
 			if conn != nil {
 				conn.Close()
 			}
-			g.log(LogError, "Failed opening connection to the gateway, retrying in 5 seconds...")
+			g.log(LogError, "Failed opening connection to the gateway, retrying in 5 seconds: %v", err)
 			time.Sleep(time.Second * 5)
 			continue
 		}
@@ -909,6 +917,8 @@ func (g *GatewayConnection) handleCloseFrame(data []byte) {
 // it decodes the message into an event using a shared zlib context
 func (g *GatewayConnection) handleReadMessage() {
 
+	readLen := g.readMessageBuffer.Len()
+
 	if g.zlibReader == nil {
 		// We initialize the zlib reader here as opposed to in NewGatewayConntection because
 		// zlib.NewReader apperently needs the header straight away, or it will block forever
@@ -934,12 +944,14 @@ func (g *GatewayConnection) handleReadMessage() {
 		return
 	}
 
-	if g.decodedBuffer.Cap() > MaxIntermediaryBuffersSize {
+	if g.decodedBuffer.Cap() > MaxIntermediaryBuffersSize && g.decodedBuffer.Len() < MaxIntermediaryBuffersSize {
 		maybeThrowawayBytesBuf(&g.decodedBuffer, MaxIntermediaryBuffersSize)
 		g.jsonDecoder = gojay.NewDecoder(g.teeReader)
 	}
 
-	maybeThrowawayBytesBuf(g.readMessageBuffer, MaxIntermediaryBuffersSize)
+	if readLen < MaxIntermediaryBuffersSize {
+		maybeThrowawayBytesBuf(g.readMessageBuffer, MaxIntermediaryBuffersSize)
+	}
 
 	g.handleEvent(g.event)
 }
@@ -1029,7 +1041,7 @@ func (g *GatewayConnection) handleDispatch(e *Event) error {
 		g.log(LogWarning, "unknown event: Op: %d, Seq: %d, Type: %s, Data: %s", e.Operation, e.Sequence, e.Type, string(e.RawData))
 	}
 
-	if g.secondPassBuf.Cap() > MaxIntermediaryBuffersSize {
+	if g.secondPassBuf.Cap() > MaxIntermediaryBuffersSize && len(e.RawData) < MaxIntermediaryBuffersSize {
 		g.secondPassJsonDecoder = json.NewDecoder(g.secondPassBuf)
 		maybeThrowawayBytesBuf(g.secondPassBuf, MaxIntermediaryBuffersSize)
 	}

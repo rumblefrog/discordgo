@@ -70,6 +70,14 @@ func (s *Session) request(method, urlStr, contentType string, b []byte, bucketID
 	return s.RequestWithLockedBucket(method, urlStr, contentType, b, s.Ratelimiter.LockBucket(bucketID), sequence)
 }
 
+type ReaderWithMockClose struct {
+	*bytes.Reader
+}
+
+func (rwmc *ReaderWithMockClose) Close() error {
+	return nil
+}
+
 // RequestWithLockedBucket makes a request using a bucket that's already been locked
 func (s *Session) RequestWithLockedBucket(method, urlStr, contentType string, b []byte, bucket *Bucket, sequence int) (response []byte, err error) {
 	if s.Debug {
@@ -77,10 +85,14 @@ func (s *Session) RequestWithLockedBucket(method, urlStr, contentType string, b 
 		log.Printf("API REQUEST  PAYLOAD :: [%s]\n", string(b))
 	}
 
-	req, err := retryablehttp.NewRequest(method, urlStr, bytes.NewReader(b))
+	req, err := retryablehttp.NewRequest(method, urlStr, b)
 	if err != nil {
 		bucket.Release(nil)
 		return
+	}
+
+	req.GetBody = func() (io.ReadCloser, error) {
+		return &ReaderWithMockClose{bytes.NewReader(b)}, nil
 	}
 
 	// Not used on initial login..
