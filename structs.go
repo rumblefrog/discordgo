@@ -14,9 +14,10 @@ package discordgo
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/hashicorp/go-retryablehttp"
 	"sync"
 	"time"
+
+	"github.com/hashicorp/go-retryablehttp"
 )
 
 // A Session represents a connection to the Discord API.
@@ -68,6 +69,9 @@ type Session struct {
 
 	// The gateway websocket connection
 	GatewayManager *GatewayConnectionManager
+
+	// User agent to use in REST requests
+	UserAgent string
 
 	// Event handlers
 	handlersMu   sync.RWMutex

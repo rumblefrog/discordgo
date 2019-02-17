@@ -17,16 +17,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/hashicorp/go-retryablehttp"
 	"log"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/hashicorp/go-retryablehttp"
 )
 
 // VERSION of DiscordGo, follows Semantic Versioning. (http://semver.org/)
-const VERSION = "0.18.0-alpha"
+const VERSION = "1.0.2"
 
 // ErrMFA will be risen by New when the user has 2FA.
 var ErrMFA = errors.New("account has 2FA enabled")
@@ -70,6 +71,8 @@ func New(args ...interface{}) (s *Session, err error) {
 		session:          s,
 		voiceConnections: make(map[int64]*VoiceConnection),
 	}
+
+	s.UserAgent = fmt.Sprintf("DiscordBot (https://github.com/rumblefrog/discordgo, v%s)", VERSION)
 
 	s.Client.CheckRetry = CheckRetry
 	s.Client.RetryMax = 10
