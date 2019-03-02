@@ -1,4 +1,4 @@
-module github.com/jonas747/discordgo
+module github.com/rumblefrog/discordgo
 
 require (
 	github.com/bwmarrin/discordgo v0.18.0
