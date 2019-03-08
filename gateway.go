@@ -273,6 +273,17 @@ func (g *GatewayConnectionManager) RequestGuildMembers(guildID int64, query stri
 	conn.RequestGuildMembers(guildID, query, limit)
 }
 
+func (g *GatewayConnectionManager) SubscribeGuild(guildID int64, typing, activities bool) {
+	g.mu.RLock()
+	conn := g.currentConnection
+	g.mu.RUnlock()
+	if conn == nil {
+		return
+	}
+
+	conn.SubscribeGuild(guildID, typing, activities)
+}
+
 type voiceChannelJoinData struct {
 	GuildID   *string `json:"guild_id"`
 	ChannelID *string `json:"channel_id"`
