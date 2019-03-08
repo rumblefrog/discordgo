@@ -881,12 +881,15 @@ const (
 		PermissionManageRoles |
 		PermissionManageChannels |
 		PermissionAddReactions |
-		PermissionViewAuditLogs
+		PermissionViewAuditLogs |
+		PermissionManageWebhooks
 	PermissionAll = PermissionAllChannel |
 		PermissionKickMembers |
 		PermissionBanMembers |
 		PermissionManageServer |
-		PermissionAdministrator
+		PermissionAdministrator |
+		PermissionManageNicknames |
+		PermissionManageEmojis
 )
 
 // Block contains Discord JSON Error Response codes
