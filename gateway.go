@@ -18,9 +18,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/gobwas/ws"
-	"github.com/gobwas/ws/wsutil"
-	"github.com/jonas747/gojay"
 	"io"
 	"math/rand"
 	"net"
@@ -30,6 +27,10 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/gobwas/ws"
+	"github.com/gobwas/ws/wsutil"
+	"github.com/jonas747/gojay"
 )
 
 var (
@@ -74,18 +75,23 @@ var IdentifyRatelimiter GatewayIdentifyRatelimiter = &StdGatewayIdentifyRatleimi
 type GatewayOP int
 
 const (
-	GatewayOPDispatch            GatewayOP = 0  // (Receive)
-	GatewayOPHeartbeat           GatewayOP = 1  // (Send/Receive)
-	GatewayOPIdentify            GatewayOP = 2  // (Send)
-	GatewayOPStatusUpdate        GatewayOP = 3  // (Send)
-	GatewayOPVoiceStateUpdate    GatewayOP = 4  // (Send)
-	GatewayOPVoiceServerPing     GatewayOP = 5  // (Send)
-	GatewayOPResume              GatewayOP = 6  // (Send)
-	GatewayOPReconnect           GatewayOP = 7  // (Receive)
-	GatewayOPRequestGuildMembers GatewayOP = 8  // (Send)
-	GatewayOPInvalidSession      GatewayOP = 9  // (Receive)
-	GatewayOPHello               GatewayOP = 10 // (Receive)
-	GatewayOPHeartbeatACK        GatewayOP = 11 // (Receive)
+	GatewayOPDispatch            GatewayOP = iota // (Receive)
+	GatewayOPHeartbeat                            // (Send/Receive)
+	GatewayOPIdentify                             // (Send)
+	GatewayOPStatusUpdate                         // (Send)
+	GatewayOPVoiceStateUpdate                     // (Send)
+	GatewayOPVoiceServerPing                      // (Send)
+	GatewayOPResume                               // (Send)
+	GatewayOPReconnect                            // (Receive)
+	GatewayOPRequestGuildMembers                  // (Send)
+	GatewayOPInvalidSession                       // (Receive)
+	GatewayOPHello                                // (Receive)
+	GatewayOPHeartbeatACK                         // (Receive)
+)
+
+const (
+	GatewayOPCallConnect        GatewayOP = 13
+	GatewayOPGuildSubscriptions GatewayOP = 14
 )
 
 type GatewayStatus int
@@ -1137,6 +1143,21 @@ func (g *GatewayConnection) resume(sessionID string, sequence int64) error {
 	return nil
 }
 
+func (g *GatewayConnection) SubscribeGuild(guildID int64, typing, activities bool) {
+	op := &outgoingEvent{
+		Operation: GatewayOPGuildSubscriptions,
+		Data: &guildSubscriptionsData{
+			GuildID:    guildID,
+			Typing:     typing,
+			Activities: activities,
+		},
+	}
+
+	g.log(LogInformational, "Sending subscribe guild")
+
+	g.writer.Queue(op)
+}
+
 func (g *GatewayConnection) RequestGuildMembers(guildID int64, query string, limit int) {
 	op := &outgoingEvent{
 		Operation: GatewayOPRequestGuildMembers,
@@ -1212,4 +1233,10 @@ type requestGuildMembersData struct {
 	GuildID int64  `json:"guild_id,string"`
 	Query   string `json:"query"`
 	Limit   int    `json:"limit"`
+}
+
+type guildSubscriptionsData struct {
+	GuildID    int64 `json:"guild_id,string"`
+	Typing     bool  `json:"typing"`
+	Activities bool  `json:"activities"`
 }

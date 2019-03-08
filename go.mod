@@ -8,6 +8,7 @@ require (
 	github.com/gorilla/websocket v1.3.0
 	github.com/hashicorp/go-cleanhttp v0.0.0-20171218145408-d5fe4b57a186 // indirect
 	github.com/hashicorp/go-retryablehttp v0.0.0-20180718195005-e651d75abec6
+	github.com/jonas747/gojay v0.0.0-20181010205435-9081ac11e06c
 	golang.org/x/crypto v0.0.0-20180820150726-614d502a4dac
 	golang.org/x/sys v0.0.0-20180824143301-4910a1d54f87 // indirect
 )
