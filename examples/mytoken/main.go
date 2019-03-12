@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/bwmarrin/discordgo"
+	"github.com/rumblefrog/discordgo"
 )
 
 // Variables used for command line parameters
