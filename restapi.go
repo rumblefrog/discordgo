@@ -79,6 +79,12 @@ func (rwmc *ReaderWithMockClose) Close() error {
 	return nil
 }
 
+func (s *Session) SetNextRequestHeaders(headers OptionalRequestHeaders) {
+	s.onrhMu.Lock()
+	s.OptionalNextRequestHeaders = headers
+	s.onrhMu.Unlock()
+}
+
 // RequestWithLockedBucket makes a request using a bucket that's already been locked
 func (s *Session) RequestWithLockedBucket(method, urlStr, contentType string, b []byte, bucket *Bucket, sequence int) (response []byte, err error) {
 	if s.Debug {
@@ -104,6 +110,13 @@ func (s *Session) RequestWithLockedBucket(method, urlStr, contentType string, b 
 
 	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("User-Agent", s.UserAgent)
+
+	s.onrhMu.Lock()
+	if s.OptionalNextRequestHeaders.AuditLogReason != "" {
+		req.Header.Set("X-Audit-Log-Reason", s.OptionalNextRequestHeaders.AuditLogReason)
+		s.OptionalNextRequestHeaders.AuditLogReason = ""
+	}
+	s.onrhMu.Unlock()
 
 	if s.Debug {
 		for k, v := range req.Header {

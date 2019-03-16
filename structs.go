@@ -73,6 +73,12 @@ type Session struct {
 	// User agent to use in REST requests
 	UserAgent string
 
+	// Request headers to use for the very next request, should be set right before it fires
+	OptionalNextRequestHeaders OptionalRequestHeaders
+
+	// Mutex for next optional request headers
+	onrhMu sync.RWMutex
+
 	// Event handlers
 	handlersMu   sync.RWMutex
 	handlers     map[string][]*eventHandlerInstance
@@ -820,6 +826,10 @@ type MessageReaction struct {
 type GatewayBotResponse struct {
 	URL    string `json:"url"`
 	Shards int    `json:"shards"`
+}
+
+type OptionalRequestHeaders struct {
+	AuditLogReason string
 }
 
 // Constants for the different bit offsets of text channel permissions
