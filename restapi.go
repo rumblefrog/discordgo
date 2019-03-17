@@ -111,6 +111,7 @@ func (s *Session) RequestWithLockedBucket(method, urlStr, contentType string, b 
 	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("User-Agent", s.UserAgent)
 
+	// FIXME: Might create a race condition between other requests
 	s.onrhMu.Lock()
 	if s.OptionalNextRequestHeaders.AuditLogReason != "" {
 		req.Header.Set("X-Audit-Log-Reason", s.OptionalNextRequestHeaders.AuditLogReason)
