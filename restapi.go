@@ -159,7 +159,7 @@ func (s *Session) RequestWithLockedBucket(method, urlStr, contentType string, b 
 		rl := TooManyRequests{}
 		err = json.Unmarshal(response, &rl)
 		if err != nil {
-			s.log(LogError, "rate limit unmarshal error, %s", err)
+			s.log(LogError, "rate limit unmarshal error, %s, %q", err, string(response))
 			return
 		}
 		s.log(LogInformational, "Rate Limiting %s, retry in %d", urlStr, rl.RetryAfter)
@@ -522,12 +522,12 @@ func (s *Session) UserChannelPermissions(userID, channelID int64) (apermissions 
 		}
 	}
 
-	return memberPermissions(guild, channel, member), nil
+	return MemberPermissions(guild, channel, member), nil
 }
 
 // Calculates the permissions for a member.
 // https://support.discordapp.com/hc/en-us/articles/206141927-How-is-the-permission-hierarchy-structured-
-func memberPermissions(guild *Guild, channel *Channel, member *Member) (apermissions int) {
+func MemberPermissions(guild *Guild, channel *Channel, member *Member) (apermissions int) {
 	userID := member.User.ID
 
 	if userID == guild.OwnerID {
@@ -555,37 +555,39 @@ func memberPermissions(guild *Guild, channel *Channel, member *Member) (apermiss
 		apermissions |= PermissionAll
 	}
 
-	// Apply @everyone overrides from the channel.
-	for _, overwrite := range channel.PermissionOverwrites {
-		if guild.ID == overwrite.ID {
-			apermissions &= ^overwrite.Deny
-			apermissions |= overwrite.Allow
-			break
-		}
-	}
-
-	denies := 0
-	allows := 0
-
-	// Member overwrites can override role overrides, so do two passes
-	for _, overwrite := range channel.PermissionOverwrites {
-		for _, roleID := range member.Roles {
-			if overwrite.Type == "role" && roleID == overwrite.ID {
-				denies |= overwrite.Deny
-				allows |= overwrite.Allow
+	if channel != nil {
+		// Apply @everyone overrides from the channel.
+		for _, overwrite := range channel.PermissionOverwrites {
+			if guild.ID == overwrite.ID {
+				apermissions &= ^overwrite.Deny
+				apermissions |= overwrite.Allow
 				break
 			}
 		}
-	}
 
-	apermissions &= ^denies
-	apermissions |= allows
+		denies := 0
+		allows := 0
 
-	for _, overwrite := range channel.PermissionOverwrites {
-		if overwrite.Type == "member" && overwrite.ID == userID {
-			apermissions &= ^overwrite.Deny
-			apermissions |= overwrite.Allow
-			break
+		// Member overwrites can override role overrides, so do two passes
+		for _, overwrite := range channel.PermissionOverwrites {
+			for _, roleID := range member.Roles {
+				if overwrite.Type == "role" && roleID == overwrite.ID {
+					denies |= overwrite.Deny
+					allows |= overwrite.Allow
+					break
+				}
+			}
+		}
+
+		apermissions &= ^denies
+		apermissions |= allows
+
+		for _, overwrite := range channel.PermissionOverwrites {
+			if overwrite.Type == "member" && overwrite.ID == userID {
+				apermissions &= ^overwrite.Deny
+				apermissions |= overwrite.Allow
+				break
+			}
 		}
 	}
 
