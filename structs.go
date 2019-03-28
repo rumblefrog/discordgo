@@ -209,6 +209,27 @@ type Channel struct {
 	ParentID int64 `json:"parent_id,string"`
 }
 
+func (g *Guild) Role(id int64) *Role {
+	for _, v := range g.Roles {
+		if v.ID == id {
+			return v
+		}
+	}
+
+	return nil
+}
+
+func (g *Guild) Channel(id int64) *Channel {
+	for _, v := range g.Channels {
+		if v.ID == id {
+			return v
+		}
+	}
+
+	return nil
+
+}
+
 // Mention returns a string which mentions the channel
 func (c *Channel) Mention() string {
 	return fmt.Sprintf("<#%s>", c.ID)
