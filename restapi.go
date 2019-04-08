@@ -972,13 +972,14 @@ func (s *Session) GuildChannelCreate(guildID int64, name string, ctype ChannelTy
 // name        : Name of the channel (2-100 chars length)
 // ctype       : Type of the channel
 // overwrites  : slice of permission overwrites
-func (s *Session) GuildChannelCreateWithOverwrites(guildID int64, name string, ctype ChannelType, overwrites []*PermissionOverwrite) (st *Channel, err error) {
+func (s *Session) GuildChannelCreateWithOverwrites(guildID int64, name string, ctype ChannelType, parentID int64, overwrites []*PermissionOverwrite) (st *Channel, err error) {
 
 	data := struct {
 		Name                 string                 `json:"name"`
 		Type                 ChannelType            `json:"type"`
+		ParentID             int64                  `json:"parent_id,string"`
 		PermissionOverwrites []*PermissionOverwrite `json:"permission_overwrites"`
-	}{name, ctype, overwrites}
+	}{name, ctype, parentID, overwrites}
 
 	body, err := s.RequestWithBucketID("POST", EndpointGuildChannels(guildID), data, EndpointGuildChannels(guildID))
 	if err != nil {
