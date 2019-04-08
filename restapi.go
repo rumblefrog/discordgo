@@ -967,6 +967,28 @@ func (s *Session) GuildChannelCreate(guildID int64, name string, ctype ChannelTy
 	return
 }
 
+// GuildChannelCreateWithOverwrites creates a new channel in the given guild
+// guildID     : The ID of a Guild.
+// name        : Name of the channel (2-100 chars length)
+// ctype       : Type of the channel
+// overwrites  : slice of permission overwrites
+func (s *Session) GuildChannelCreateWithOverwrites(guildID int64, name string, ctype ChannelType, overwrites []*PermissionOverwrite) (st *Channel, err error) {
+
+	data := struct {
+		Name                 string                 `json:"name"`
+		Type                 ChannelType            `json:"type"`
+		PermissionOverwrites []*PermissionOverwrite `json:"permission_overwrites"`
+	}{name, ctype, overwrites}
+
+	body, err := s.RequestWithBucketID("POST", EndpointGuildChannels(guildID), data, EndpointGuildChannels(guildID))
+	if err != nil {
+		return
+	}
+
+	err = unmarshal(body, &st)
+	return
+}
+
 // GuildChannelsReorder updates the order of channels in a guild
 // guildID   : The ID of a Guild.
 // channels  : Updated channels.
