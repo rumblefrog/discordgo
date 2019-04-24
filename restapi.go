@@ -12,6 +12,7 @@ package discordgo
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -110,6 +111,9 @@ func (s *Session) RequestWithLockedBucket(method, urlStr, contentType string, b 
 			log.Printf("API REQUEST   HEADER :: [%s] = %+v\n", k, v)
 		}
 	}
+
+	ctx, _ := context.WithTimeout(req.Context(), time.Second*5)
+	req = req.WithContext(ctx)
 
 	resp, err := s.Client.Do(req)
 	if err != nil {
