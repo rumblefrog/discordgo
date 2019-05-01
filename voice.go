@@ -261,6 +261,8 @@ type voiceOP2 struct {
 	HeartbeatInterval time.Duration `json:"heartbeat_interval"`
 }
 
+var ErrTimeoutWaitingForVoice = errors.New("timeout waiting for voice")
+
 // WaitUntilConnected waits for the Voice Connection to
 // become ready, if it does not become ready it returns an err
 func (v *VoiceConnection) waitUntilConnected() error {
@@ -277,7 +279,7 @@ func (v *VoiceConnection) waitUntilConnected() error {
 		}
 
 		if i > 10 {
-			return fmt.Errorf("timeout waiting for voice")
+			return ErrTimeoutWaitingForVoice
 		}
 
 		time.Sleep(1 * time.Second)
