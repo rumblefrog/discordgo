@@ -112,7 +112,7 @@ func (s *Session) RequestWithLockedBucket(method, urlStr, contentType string, b 
 		}
 	}
 
-	ctx, _ := context.WithTimeout(req.Context(), time.Second*5)
+	ctx, _ := context.WithTimeout(req.Context(), time.Second*10)
 	req = req.WithContext(ctx)
 
 	resp, err := s.Client.Do(req)
