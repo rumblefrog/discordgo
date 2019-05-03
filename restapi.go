@@ -12,7 +12,6 @@ package discordgo
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/hashicorp/go-retryablehttp"
@@ -133,16 +132,13 @@ func (s *Session) doRequestLockedBucket(method, urlStr, contentType string, b []
 
 	req.Header.Set("Content-Type", contentType)
 	// TODO: Make a configurable static variable.
-	req.Header.Set("User-Agent", fmt.Sprintf("DiscordBot (https://github.com/bwmarrin/discordgo, v%s)", VERSION))
+	req.Header.Set("User-Agent", fmt.Sprintf("DiscordBot (https://github.com/jonas747/discordgo, v%s)", VERSION))
 
 	if s.Debug {
 		for k, v := range req.Header {
 			log.Printf("API REQUEST   HEADER :: [%s] = %+v\n", k, v)
 		}
 	}
-
-	ctx, _ := context.WithTimeout(req.Context(), time.Second*10)
-	req = req.WithContext(ctx)
 
 	resp, err := s.Client.Do(req)
 	if err != nil {
