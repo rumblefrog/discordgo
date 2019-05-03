@@ -14,9 +14,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"github.com/hashicorp/go-retryablehttp"
+	"github.com/pkg/errors"
 	"image"
 	_ "image/jpeg" // For JPEG decoding
 	_ "image/png"  // For PNG decoding
@@ -58,17 +58,17 @@ func (s *Session) RequestWithBucketID(method, urlStr string, data interface{}, b
 		}
 	}
 
-	return s.request(method, urlStr, "application/json", body, bucketID, 0)
+	return s.request(method, urlStr, "application/json", body, bucketID)
 }
 
 // request makes a (GET/POST/...) Requests to Discord REST API.
 // Sequence is the sequence number, if it fails with a 502 it will
 // retry with sequence+1 until it either succeeds or sequence >= session.MaxRestRetries
-func (s *Session) request(method, urlStr, contentType string, b []byte, bucketID string, sequence int) (response []byte, err error) {
+func (s *Session) request(method, urlStr, contentType string, b []byte, bucketID string) (response []byte, err error) {
 	if bucketID == "" {
 		bucketID = strings.SplitN(urlStr, "?", 2)[0]
 	}
-	return s.RequestWithLockedBucket(method, urlStr, contentType, b, s.Ratelimiter.LockBucket(bucketID), sequence)
+	return s.RequestWithLockedBucket(method, urlStr, contentType, b, s.Ratelimiter.LockBucket(bucketID))
 }
 
 type ReaderWithMockClose struct {
@@ -80,7 +80,36 @@ func (rwmc *ReaderWithMockClose) Close() error {
 }
 
 // RequestWithLockedBucket makes a request using a bucket that's already been locked
-func (s *Session) RequestWithLockedBucket(method, urlStr, contentType string, b []byte, bucket *Bucket, sequence int) (response []byte, err error) {
+func (s *Session) RequestWithLockedBucket(method, urlStr, contentType string, b []byte, bucket *Bucket) (response []byte, err error) {
+
+	for i := 0; i < s.MaxRestRetries; i++ {
+		if i != 0 {
+			// bucket is unlocked during retry downtimes, lock it here again
+			s.Ratelimiter.LockBucketObject(bucket)
+		}
+
+		var retry bool
+		var ratelimited bool
+		response, retry, ratelimited, err = s.doRequestLockedBucket(method, urlStr, contentType, b, bucket)
+		if !retry {
+			break
+		}
+
+		if ratelimited {
+			i = 0
+		} else {
+			time.Sleep(time.Second)
+		}
+
+	}
+
+	err = errors.Wrap(err, "exceeded max retries")
+
+	return
+}
+
+// RequestWithLockedBucket makes a request using a bucket that's already been locked
+func (s *Session) doRequestLockedBucket(method, urlStr, contentType string, b []byte, bucket *Bucket) (response []byte, retry bool, ratelimitRetry bool, err error) {
 	if s.Debug {
 		log.Printf("API REQUEST %8s :: %s\n", method, urlStr)
 		log.Printf("API REQUEST  PAYLOAD :: [%s]\n", string(b))
@@ -118,8 +147,9 @@ func (s *Session) RequestWithLockedBucket(method, urlStr, contentType string, b 
 	resp, err := s.Client.Do(req)
 	if err != nil {
 		bucket.Release(nil)
-		return
+		return nil, true, false, err
 	}
+
 	defer func() {
 		err2 := resp.Body.Close()
 		if err2 != nil {
@@ -152,13 +182,10 @@ func (s *Session) RequestWithLockedBucket(method, urlStr, contentType string, b 
 	case http.StatusNoContent:
 	case http.StatusBadGateway, http.StatusGatewayTimeout:
 		// Retry sending request if possible
-		if sequence < s.MaxRestRetries {
+		err = errors.Errorf("%s Failed (%s)", urlStr, resp.Status)
+		s.log(LogWarning, err.Error())
+		return nil, true, false, err
 
-			s.log(LogInformational, "%s Failed (%s), Retrying...", urlStr, resp.Status)
-			response, err = s.RequestWithLockedBucket(method, urlStr, contentType, b, s.Ratelimiter.LockBucketObject(bucket), sequence+1)
-		} else {
-			err = fmt.Errorf("Exceeded Max retries HTTP %s, %s", resp.Status, response)
-		}
 	case 429: // TOO MANY REQUESTS - Rate limiting
 		rl := TooManyRequests{}
 		err = json.Unmarshal(response, &rl)
@@ -172,8 +199,8 @@ func (s *Session) RequestWithLockedBucket(method, urlStr, contentType string, b 
 		time.Sleep(rl.RetryAfter * time.Millisecond)
 		// we can make the above smarter
 		// this method can cause longer delays than required
+		return nil, true, true, nil
 
-		response, err = s.RequestWithLockedBucket(method, urlStr, contentType, b, s.Ratelimiter.LockBucketObject(bucket), sequence)
 	case http.StatusUnauthorized:
 		if strings.Index(s.Token, "Bot ") != 0 {
 			s.log(LogInformational, ErrUnauthorized.Error())
@@ -941,7 +968,7 @@ func (s *Session) GuildMemberRoleRemove(guildID, userID, roleID int64) (err erro
 // guildID   : The ID of a Guild.
 func (s *Session) GuildChannels(guildID int64) (st []*Channel, err error) {
 
-	body, err := s.request("GET", EndpointGuildChannels(guildID), "", nil, EndpointGuildChannels(guildID), 0)
+	body, err := s.request("GET", EndpointGuildChannels(guildID), "", nil, EndpointGuildChannels(guildID))
 	if err != nil {
 		return
 	}
@@ -1610,7 +1637,7 @@ func (s *Session) ChannelMessageSendComplex(channelID int64, data *MessageSend) 
 			return
 		}
 
-		response, err = s.request("POST", endpoint, bodywriter.FormDataContentType(), body.Bytes(), endpoint, 0)
+		response, err = s.request("POST", endpoint, bodywriter.FormDataContentType(), body.Bytes(), endpoint)
 	} else {
 		response, err = s.RequestWithBucketID("POST", endpoint, data, endpoint)
 	}
