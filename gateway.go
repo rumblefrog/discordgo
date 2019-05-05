@@ -204,7 +204,7 @@ func (g *GatewayConnectionManager) Open() error {
 	g.session.log(LogInformational, "reconnecting voice connections")
 	for _, vc := range g.voiceConnections {
 		go func() {
-			g.session.log(LogInformational, "reconnecting voice connection: %s", vc.GuildID)
+			g.session.log(LogInformational, "reconnecting voice connection: %d", vc.GuildID)
 			vc.Lock()
 			vc.gatewayConn = newConn
 			vc.Unlock()
