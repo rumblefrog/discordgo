@@ -948,7 +948,7 @@ func (s *State) UserChannelPermissions(userID, channelID int64) (apermissions in
 		return
 	}
 
-	return memberPermissions(guild, channel, member), nil
+	return MemberPermissions(guild, channel, member), nil
 }
 
 // UserColor returns the color of a user in a channel.

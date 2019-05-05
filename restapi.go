@@ -13,8 +13,9 @@ package discordgo
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
+	"github.com/hashicorp/go-retryablehttp"
+	"github.com/pkg/errors"
 	"image"
 	_ "image/jpeg" // For JPEG decoding
 	_ "image/png"  // For PNG decoding
@@ -28,8 +29,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/hashicorp/go-retryablehttp"
 )
 
 // All error constants
@@ -58,17 +57,17 @@ func (s *Session) RequestWithBucketID(method, urlStr string, data interface{}, b
 		}
 	}
 
-	return s.request(method, urlStr, "application/json", body, bucketID, 0)
+	return s.request(method, urlStr, "application/json", body, bucketID)
 }
 
 // request makes a (GET/POST/...) Requests to Discord REST API.
 // Sequence is the sequence number, if it fails with a 502 it will
 // retry with sequence+1 until it either succeeds or sequence >= session.MaxRestRetries
-func (s *Session) request(method, urlStr, contentType string, b []byte, bucketID string, sequence int) (response []byte, err error) {
+func (s *Session) request(method, urlStr, contentType string, b []byte, bucketID string) (response []byte, err error) {
 	if bucketID == "" {
 		bucketID = strings.SplitN(urlStr, "?", 2)[0]
 	}
-	return s.RequestWithLockedBucket(method, urlStr, contentType, b, s.Ratelimiter.LockBucket(bucketID), sequence)
+	return s.RequestWithLockedBucket(method, urlStr, contentType, b, s.Ratelimiter.LockBucket(bucketID))
 }
 
 type ReaderWithMockClose struct {
@@ -86,7 +85,36 @@ func (s *Session) SetNextRequestHeaders(headers OptionalRequestHeaders) {
 }
 
 // RequestWithLockedBucket makes a request using a bucket that's already been locked
-func (s *Session) RequestWithLockedBucket(method, urlStr, contentType string, b []byte, bucket *Bucket, sequence int) (response []byte, err error) {
+func (s *Session) RequestWithLockedBucket(method, urlStr, contentType string, b []byte, bucket *Bucket) (response []byte, err error) {
+
+	for i := 0; i < s.MaxRestRetries; i++ {
+		if i != 0 {
+			// bucket is unlocked during retry downtimes, lock it here again
+			s.Ratelimiter.LockBucketObject(bucket)
+		}
+
+		var retry bool
+		var ratelimited bool
+		response, retry, ratelimited, err = s.doRequestLockedBucket(method, urlStr, contentType, b, bucket)
+		if !retry {
+			break
+		}
+
+		if ratelimited {
+			i = 0
+		} else {
+			time.Sleep(time.Second)
+		}
+
+	}
+
+	err = errors.Wrap(err, "exceeded max retries")
+
+	return
+}
+
+// RequestWithLockedBucket makes a request using a bucket that's already been locked
+func (s *Session) doRequestLockedBucket(method, urlStr, contentType string, b []byte, bucket *Bucket) (response []byte, retry bool, ratelimitRetry bool, err error) {
 	if s.Debug {
 		log.Printf("API REQUEST %8s :: %s\n", method, urlStr)
 		log.Printf("API REQUEST  PAYLOAD :: [%s]\n", string(b))
@@ -128,8 +156,9 @@ func (s *Session) RequestWithLockedBucket(method, urlStr, contentType string, b 
 	resp, err := s.Client.Do(req)
 	if err != nil {
 		bucket.Release(nil)
-		return
+		return nil, true, false, err
 	}
+
 	defer func() {
 		err2 := resp.Body.Close()
 		if err2 != nil {
@@ -162,18 +191,15 @@ func (s *Session) RequestWithLockedBucket(method, urlStr, contentType string, b 
 	case http.StatusNoContent:
 	case http.StatusBadGateway, http.StatusGatewayTimeout:
 		// Retry sending request if possible
-		if sequence < s.MaxRestRetries {
+		err = errors.Errorf("%s Failed (%s)", urlStr, resp.Status)
+		s.log(LogWarning, err.Error())
+		return nil, true, false, err
 
-			s.log(LogInformational, "%s Failed (%s), Retrying...", urlStr, resp.Status)
-			response, err = s.RequestWithLockedBucket(method, urlStr, contentType, b, s.Ratelimiter.LockBucketObject(bucket), sequence+1)
-		} else {
-			err = fmt.Errorf("Exceeded Max retries HTTP %s, %s", resp.Status, response)
-		}
 	case 429: // TOO MANY REQUESTS - Rate limiting
 		rl := TooManyRequests{}
 		err = json.Unmarshal(response, &rl)
 		if err != nil {
-			s.log(LogError, "rate limit unmarshal error, %s", err)
+			s.log(LogError, "rate limit unmarshal error, %s, %q", err, string(response))
 			return
 		}
 		s.log(LogInformational, "Rate Limiting %s, retry in %d", urlStr, rl.RetryAfter)
@@ -182,8 +208,8 @@ func (s *Session) RequestWithLockedBucket(method, urlStr, contentType string, b 
 		time.Sleep(rl.RetryAfter * time.Millisecond)
 		// we can make the above smarter
 		// this method can cause longer delays than required
+		return nil, true, true, nil
 
-		response, err = s.RequestWithLockedBucket(method, urlStr, contentType, b, s.Ratelimiter.LockBucketObject(bucket), sequence)
 	case http.StatusUnauthorized:
 		if strings.Index(s.Token, "Bot ") != 0 {
 			s.log(LogInformational, ErrUnauthorized.Error())
@@ -536,12 +562,12 @@ func (s *Session) UserChannelPermissions(userID, channelID int64) (apermissions 
 		}
 	}
 
-	return memberPermissions(guild, channel, member), nil
+	return MemberPermissions(guild, channel, member), nil
 }
 
 // Calculates the permissions for a member.
 // https://support.discordapp.com/hc/en-us/articles/206141927-How-is-the-permission-hierarchy-structured-
-func memberPermissions(guild *Guild, channel *Channel, member *Member) (apermissions int) {
+func MemberPermissions(guild *Guild, channel *Channel, member *Member) (apermissions int) {
 	userID := member.User.ID
 
 	if userID == guild.OwnerID {
@@ -569,37 +595,39 @@ func memberPermissions(guild *Guild, channel *Channel, member *Member) (apermiss
 		apermissions |= PermissionAll
 	}
 
-	// Apply @everyone overrides from the channel.
-	for _, overwrite := range channel.PermissionOverwrites {
-		if guild.ID == overwrite.ID {
-			apermissions &= ^overwrite.Deny
-			apermissions |= overwrite.Allow
-			break
-		}
-	}
-
-	denies := 0
-	allows := 0
-
-	// Member overwrites can override role overrides, so do two passes
-	for _, overwrite := range channel.PermissionOverwrites {
-		for _, roleID := range member.Roles {
-			if overwrite.Type == "role" && roleID == overwrite.ID {
-				denies |= overwrite.Deny
-				allows |= overwrite.Allow
+	if channel != nil {
+		// Apply @everyone overrides from the channel.
+		for _, overwrite := range channel.PermissionOverwrites {
+			if guild.ID == overwrite.ID {
+				apermissions &= ^overwrite.Deny
+				apermissions |= overwrite.Allow
 				break
 			}
 		}
-	}
 
-	apermissions &= ^denies
-	apermissions |= allows
+		denies := 0
+		allows := 0
 
-	for _, overwrite := range channel.PermissionOverwrites {
-		if overwrite.Type == "member" && overwrite.ID == userID {
-			apermissions &= ^overwrite.Deny
-			apermissions |= overwrite.Allow
-			break
+		// Member overwrites can override role overrides, so do two passes
+		for _, overwrite := range channel.PermissionOverwrites {
+			for _, roleID := range member.Roles {
+				if overwrite.Type == "role" && roleID == overwrite.ID {
+					denies |= overwrite.Deny
+					allows |= overwrite.Allow
+					break
+				}
+			}
+		}
+
+		apermissions &= ^denies
+		apermissions |= allows
+
+		for _, overwrite := range channel.PermissionOverwrites {
+			if overwrite.Type == "member" && overwrite.ID == userID {
+				apermissions &= ^overwrite.Deny
+				apermissions |= overwrite.Allow
+				break
+			}
 		}
 	}
 
@@ -949,7 +977,7 @@ func (s *Session) GuildMemberRoleRemove(guildID, userID, roleID int64) (err erro
 // guildID   : The ID of a Guild.
 func (s *Session) GuildChannels(guildID int64) (st []*Channel, err error) {
 
-	body, err := s.request("GET", EndpointGuildChannels(guildID), "", nil, EndpointGuildChannels(guildID), 0)
+	body, err := s.request("GET", EndpointGuildChannels(guildID), "", nil, EndpointGuildChannels(guildID))
 	if err != nil {
 		return
 	}
@@ -969,6 +997,29 @@ func (s *Session) GuildChannelCreate(guildID int64, name string, ctype ChannelTy
 		Name string      `json:"name"`
 		Type ChannelType `json:"type"`
 	}{name, ctype}
+
+	body, err := s.RequestWithBucketID("POST", EndpointGuildChannels(guildID), data, EndpointGuildChannels(guildID))
+	if err != nil {
+		return
+	}
+
+	err = unmarshal(body, &st)
+	return
+}
+
+// GuildChannelCreateWithOverwrites creates a new channel in the given guild
+// guildID     : The ID of a Guild.
+// name        : Name of the channel (2-100 chars length)
+// ctype       : Type of the channel
+// overwrites  : slice of permission overwrites
+func (s *Session) GuildChannelCreateWithOverwrites(guildID int64, name string, ctype ChannelType, parentID int64, overwrites []*PermissionOverwrite) (st *Channel, err error) {
+
+	data := struct {
+		Name                 string                 `json:"name"`
+		Type                 ChannelType            `json:"type"`
+		ParentID             int64                  `json:"parent_id,string"`
+		PermissionOverwrites []*PermissionOverwrite `json:"permission_overwrites"`
+	}{name, ctype, parentID, overwrites}
 
 	body, err := s.RequestWithBucketID("POST", EndpointGuildChannels(guildID), data, EndpointGuildChannels(guildID))
 	if err != nil {
@@ -1595,7 +1646,7 @@ func (s *Session) ChannelMessageSendComplex(channelID int64, data *MessageSend) 
 			return
 		}
 
-		response, err = s.request("POST", endpoint, bodywriter.FormDataContentType(), body.Bytes(), endpoint, 0)
+		response, err = s.request("POST", endpoint, bodywriter.FormDataContentType(), body.Bytes(), endpoint)
 	} else {
 		response, err = s.RequestWithBucketID("POST", endpoint, data, endpoint)
 	}

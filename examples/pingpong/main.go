@@ -3,9 +3,12 @@ package main
 import (
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
+	"time"
 
 	"github.com/rumblefrog/discordgo"
 )
@@ -30,16 +33,14 @@ func main() {
 		fmt.Println("error creating Discord session,", err)
 		return
 	}
-	resp, err := dg.GatewayBot()
-	if err != nil {
-		fmt.Println("error creating Discord session,", err)
-		return
-	}
 
-	dg.ShardCount = resp.Shards
-	dg.ShardID = 0
+	dg.ShardCount = 100
+	dg.ShardID = 14
 
 	dg.LogLevel = discordgo.LogDebug
+
+	currentTransport := dg.Client.HTTPClient.Transport
+	dg.Client.HTTPClient.Transport = &LoggingTransport{Inner: currentTransport}
 
 	// manager := dshardmanager.New("Bot " + Token)
 	// manager.SessionFunc = func(token string) (*discordgo.Session, error) {
@@ -58,7 +59,7 @@ func main() {
 	// }
 
 	// // Register the messageCreate func as a callback for MessageCreate events.
-	// dg.AddHandler(messageCreate)
+	dg.AddHandler(messageCreate)
 	// dg.AddHandler(dumpAll)
 
 	// Open a websocket connection to Discord and begin listening.
@@ -88,7 +89,7 @@ func dumpAll(s *discordgo.Session, evt interface{}) {
 // This function will be called (due to AddHandler above) every time a new
 // message is created on any channel that the autenticated bot has access to.
 func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
-	if m.Author.ID != 138700441876692992 {
+	if m.Author.ID != 105487308693757952 {
 		return
 	}
 
@@ -146,6 +147,11 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		vc = nil
 	}
 
+	if m.Content == "yaboi ping" {
+		_, err := s.ChannelMessageSend(m.ChannelID, "pong")
+		fmt.Println("pong: ", err)
+	}
+
 	// fmt.Println("\nReceived message my dude!\n")
 	// // Ignore all messages created by the bot itself
 	// // This isn't required in this specific example but it's a good practice.
@@ -161,4 +167,47 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	// if m.Content == "pong" {
 	// 	s.ChannelMessageSend(m.ChannelID, "Ping!")
 	// }
+}
+
+type LoggingTransport struct {
+	Inner http.RoundTripper
+}
+
+var numberRemover = strings.NewReplacer(
+	"0", "",
+	"1", "",
+	"2", "",
+	"3", "",
+	"4", "",
+	"5", "",
+	"6", "",
+	"7", "",
+	"8", "",
+	"9", "")
+
+func (t *LoggingTransport) RoundTrip(request *http.Request) (*http.Response, error) {
+
+	inner := t.Inner
+	if inner == nil {
+		inner = http.DefaultTransport
+	}
+
+	started := time.Now()
+
+	code := 0
+	resp, err := inner.RoundTrip(request)
+	if resp != nil {
+		code = resp.StatusCode
+	}
+
+	since := time.Since(started).Seconds() * 1000
+	go func() {
+		// path := numberRemover.Replace(request.URL.Path)
+		fmt.Println("did request in: ", since, "c:", code, ", p:", request.URL.Path)
+
+		// Statsd.Incr("discord.response.code."+strconv.Itoa(floored), nil, 1)
+		// Statsd.Incr("discord.request.method."+request.Method, nil, 1)
+	}()
+
+	return resp, err
 }

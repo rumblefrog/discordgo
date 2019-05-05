@@ -295,6 +295,8 @@ func (g *GatewayConnectionManager) ChannelVoiceJoin(gID, cID int64, mute, deaf b
 			GuildID:            gID,
 			session:            g.session,
 			Connected:          make(chan bool),
+			LogLevel:           g.session.LogLevel,
+			Debug:              g.session.Debug,
 		}
 
 		g.voiceConnections[gID] = voice

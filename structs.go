@@ -219,6 +219,27 @@ type Channel struct {
 	ParentID int64 `json:"parent_id,string"`
 }
 
+func (g *Guild) Role(id int64) *Role {
+	for _, v := range g.Roles {
+		if v.ID == id {
+			return v
+		}
+	}
+
+	return nil
+}
+
+func (g *Guild) Channel(id int64) *Channel {
+	for _, v := range g.Channels {
+		if v.ID == id {
+			return v
+		}
+	}
+
+	return nil
+
+}
+
 // Mention returns a string which mentions the channel
 func (c *Channel) Mention() string {
 	return fmt.Sprintf("<#%s>", c.ID)
@@ -229,7 +250,7 @@ type ChannelEdit struct {
 	Name                 string                 `json:"name,omitempty"`
 	Topic                string                 `json:"topic,omitempty"`
 	NSFW                 bool                   `json:"nsfw,omitempty"`
-	Position             int                    `json:"position"`
+	Position             *int                   `json:"position,omitempty"`
 	Bitrate              int                    `json:"bitrate,omitempty"`
 	UserLimit            int                    `json:"user_limit,omitempty"`
 	PermissionOverwrites []*PermissionOverwrite `json:"permission_overwrites,omitempty"`
@@ -587,7 +608,7 @@ type Member struct {
 	GuildID int64 `json:"guild_id,string"`
 
 	// The time at which the member joined the guild, in ISO8601.
-	JoinedAt string `json:"joined_at"`
+	JoinedAt Timestamp `json:"joined_at"`
 
 	// The nickname of the member, if they have one.
 	Nick string `json:"nick"`
