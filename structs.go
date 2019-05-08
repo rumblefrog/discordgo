@@ -835,8 +835,15 @@ type MessageReaction struct {
 
 // GatewayBotResponse stores the data for the gateway/bot response
 type GatewayBotResponse struct {
-	URL    string `json:"url"`
-	Shards int    `json:"shards"`
+	URL               string            `json:"url"`
+	Shards            int               `json:"shards"`
+	SessionStartLimit SessionStartLimit `json:"session_start_limit"`
+}
+
+type SessionStartLimit struct {
+	Total      int   `json:"total"`
+	Remaining  int   `json:"remaining"`
+	ResetAfter int64 `json:"reset_after"`
 }
 
 // Constants for the different bit offsets of text channel permissions
