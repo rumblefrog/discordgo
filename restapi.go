@@ -692,7 +692,7 @@ func (s *Session) GuildLeave(guildID int64) (err error) {
 	return
 }
 
-// GuildBans returns an array of User structures for all bans of a
+// GuildBans returns an array of GuildBan structures for all bans of a
 // given guild.
 // guildID   : The ID of a Guild.
 func (s *Session) GuildBans(guildID int64) (st []*GuildBan, err error) {
