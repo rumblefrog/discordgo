@@ -106,7 +106,7 @@ func (v *VoiceConnection) Speaking(b bool) (err error) {
 	defer v.Unlock()
 	if err != nil {
 		v.speaking = false
-		v.log(LogError, "Speaking() write json error:", err)
+		v.log(LogError, "Speaking() write json error: %v", err)
 		return
 	}
 
@@ -161,7 +161,7 @@ func (v *VoiceConnection) Disconnect() (err error) {
 		v.gatewayConn.writer.Queue(data)
 		v.sessionID = ""
 	}
-	v.log(LogInformational, "Deleting VoiceConnection %s", v.GuildID)
+	v.log(LogInformational, "Deleting VoiceConnection %d", v.GuildID)
 
 	v.Unlock()
 
@@ -196,7 +196,7 @@ func (v *VoiceConnection) Close() {
 		v.log(LogInformational, "closing udp")
 		err := v.udpConn.Close()
 		if err != nil {
-			v.log(LogError, "error closing udp connection: ", err)
+			v.log(LogError, "error closing udp connection: %v", err)
 		}
 		v.udpConn = nil
 	}
@@ -880,7 +880,7 @@ func (v *VoiceConnection) reconnect(newGWConn *GatewayConnection) {
 
 	v.Lock()
 	if v.reconnecting {
-		v.log(LogInformational, "already reconnecting to channel %s, exiting", v.ChannelID)
+		v.log(LogInformational, "already reconnecting to channel %d, exiting", v.ChannelID)
 		v.Unlock()
 		return
 	}
@@ -916,20 +916,20 @@ func (v *VoiceConnection) reconnect(newGWConn *GatewayConnection) {
 		}
 		v.log(LogError, "status: %d", gwStatus)
 		if gwStatus != GatewayStatusReady {
-			v.log(LogInformational, "cannot reconnect to channel %s with unready gateway connection: %d", v.ChannelID, gwStatus)
+			v.log(LogInformational, "cannot reconnect to channel %d with unready gateway connection: %d", v.ChannelID, gwStatus)
 
 			continue
 		}
 
-		v.log(LogInformational, "trying to reconnect to channel %s", v.ChannelID)
+		v.log(LogInformational, "trying to reconnect to channel %d", v.ChannelID)
 
 		_, err := v.gatewayConn.manager.ChannelVoiceJoin(v.GuildID, v.ChannelID, v.mute, v.deaf)
 		if err == nil {
-			v.log(LogInformational, "successfully reconnected to channel %s", v.ChannelID)
+			v.log(LogInformational, "successfully reconnected to channel %d", v.ChannelID)
 			return
 		}
 
-		v.log(LogInformational, "error reconnecting to channel %s, %s", v.ChannelID, err)
+		v.log(LogInformational, "error reconnecting to channel %d, %s", v.ChannelID, err)
 
 		// if the reconnect above didn't work lets just send a disconnect
 		// packet to reset things.
