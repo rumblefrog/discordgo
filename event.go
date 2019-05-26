@@ -1,5 +1,7 @@
 package discordgo
 
+import ()
+
 // EventHandler is an interface for Discord events.
 type EventHandler interface {
 	// Type returns the type of event this handler belongs to.
@@ -51,6 +53,17 @@ func registerInterfaceProvider(eh EventInterfaceProvider) {
 		// fmt.Errorf("event %s already registered", eh.Type())
 	}
 	registeredInterfaceProviders[eh.Type()] = eh
+
+	// inst := eh.New()
+	// if _, ok := inst.(ChannelEvent); ok {
+	// 	fmt.Println(eh.Type(), " is channel event")
+	// }
+
+	// if _, ok := inst.(GuildEvent); ok {
+	// 	fmt.Println(eh.Type(), " is guild event")
+	// }
+	// fmt.Println("--")
+
 	return
 }
 

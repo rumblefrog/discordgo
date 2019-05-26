@@ -61,6 +61,14 @@ func (evt *Event) NKeys() int {
 	return 0
 }
 
+type GuildEvent interface {
+	GetGuildID() int64
+}
+
+type ChannelEvent interface {
+	GetChannelID() int64
+}
+
 // A Ready stores all data for the websocket READY event.
 type Ready struct {
 	Version         int          `json:"v"`
@@ -100,6 +108,14 @@ type ChannelPinsUpdate struct {
 	GuildID          int64  `json:"guild_id,string,omitempty"`
 }
 
+func (cp *ChannelPinsUpdate) GetGuildID() int64 {
+	return cp.GuildID
+}
+
+func (cp *ChannelPinsUpdate) GetChannelID() int64 {
+	return cp.ChannelID
+}
+
 // GuildCreate is the data for a GuildCreate event.
 type GuildCreate struct {
 	*Guild
@@ -121,10 +137,18 @@ type GuildBanAdd struct {
 	GuildID int64 `json:"guild_id,string"`
 }
 
+func (gba *GuildBanAdd) GetGuildID() int64 {
+	return gba.GuildID
+}
+
 // GuildBanRemove is the data for a GuildBanRemove event.
 type GuildBanRemove struct {
 	User    *User `json:"user"`
 	GuildID int64 `json:"guild_id,string"`
+}
+
+func (e *GuildBanRemove) GetGuildID() int64 {
+	return e.GuildID
 }
 
 // GuildMemberAdd is the data for a GuildMemberAdd event.
@@ -158,10 +182,18 @@ type GuildRoleDelete struct {
 	GuildID int64 `json:"guild_id,string"`
 }
 
+func (e *GuildRoleDelete) GetGuildID() int64 {
+	return e.GuildID
+}
+
 // A GuildEmojisUpdate is the data for a guild emoji update event.
 type GuildEmojisUpdate struct {
 	GuildID int64    `json:"guild_id,string"`
 	Emojis  []*Emoji `json:"emojis"`
+}
+
+func (e *GuildEmojisUpdate) GetGuildID() int64 {
+	return e.GuildID
 }
 
 // A GuildMembersChunk is the data for a GuildMembersChunk event.
@@ -170,9 +202,17 @@ type GuildMembersChunk struct {
 	Members []*Member `json:"members"`
 }
 
+func (e *GuildMembersChunk) GetGuildID() int64 {
+	return e.GuildID
+}
+
 // GuildIntegrationsUpdate is the data for a GuildIntegrationsUpdate event.
 type GuildIntegrationsUpdate struct {
 	GuildID int64 `json:"guild_id,string"`
+}
+
+func (e *GuildIntegrationsUpdate) GetGuildID() int64 {
+	return e.GuildID
 }
 
 // MessageAck is the data for a MessageAck event.
@@ -221,6 +261,10 @@ type PresenceUpdate struct {
 	Roles   IDSlice `json:"roles,string"`
 }
 
+func (e *PresenceUpdate) GetGuildID() int64 {
+	return e.GuildID
+}
+
 // Resumed is the data for a Resumed event.
 type Resumed struct {
 	Trace []string `json:"_trace"`
@@ -242,6 +286,14 @@ type TypingStart struct {
 	ChannelID int64 `json:"channel_id,string"`
 	Timestamp int   `json:"timestamp"`
 	GuildID   int64 `json:"guild_id,string,omitempty"`
+}
+
+func (e *TypingStart) GetGuildID() int64 {
+	return e.GuildID
+}
+
+func (e *TypingStart) GetChannelID() int64 {
+	return e.ChannelID
 }
 
 // UserUpdate is the data for a UserUpdate event.
@@ -270,6 +322,10 @@ type VoiceServerUpdate struct {
 	Endpoint string `json:"endpoint"`
 }
 
+func (e *VoiceServerUpdate) GetGuildID() int64 {
+	return e.GuildID
+}
+
 // VoiceStateUpdate is the data for a VoiceStateUpdate event.
 type VoiceStateUpdate struct {
 	*VoiceState
@@ -282,8 +338,24 @@ type MessageDeleteBulk struct {
 	GuildID   int64   `json:"guild_id,string"`
 }
 
+func (e *MessageDeleteBulk) GetGuildID() int64 {
+	return e.GuildID
+}
+
+func (e *MessageDeleteBulk) GetChannelID() int64 {
+	return e.ChannelID
+}
+
 // WebhooksUpdate is the data for a WebhooksUpdate event
 type WebhooksUpdate struct {
 	GuildID   int64 `json:"guild_id,string"`
 	ChannelID int64 `json:"channel_id,string"`
+}
+
+func (e *WebhooksUpdate) GetGuildID() int64 {
+	return e.GuildID
+}
+
+func (e *WebhooksUpdate) GetChannelID() int64 {
+	return e.ChannelID
 }
