@@ -219,7 +219,7 @@ func (c *Channel) GetGuildID() int64 {
 
 // Mention returns a string which mentions the channel
 func (c *Channel) Mention() string {
-	return fmt.Sprintf("<#%s>", c.ID)
+	return fmt.Sprintf("<#%d>", c.ID)
 }
 
 // A ChannelEdit holds Channel Feild data for a channel edit.

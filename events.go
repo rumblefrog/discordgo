@@ -257,8 +257,7 @@ type PresencesReplace []*Presence
 // PresenceUpdate is the data for a PresenceUpdate event.
 type PresenceUpdate struct {
 	Presence
-	GuildID int64   `json:"guild_id,string"`
-	Roles   IDSlice `json:"roles,string"`
+	GuildID int64 `json:"guild_id,string"`
 }
 
 func (e *PresenceUpdate) GetGuildID() int64 {
