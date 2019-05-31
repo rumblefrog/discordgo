@@ -5,6 +5,14 @@ import (
 	"strings"
 )
 
+type PremiumType int
+
+const (
+	NotPremium PremiumType = iota
+	NitroClassic
+	Nitro
+)
+
 // A User stores all data for an individual Discord user.
 type User struct {
 	// The ID of the user.
@@ -25,6 +33,9 @@ type User struct {
 
 	// Whether the user is a bot.
 	Bot bool `json:"bot"`
+
+	// An user's Nitro status
+	PremiumType PremiumType `json:"premium_type"`
 }
 
 // String returns a unique identifier of the form username#discriminator
