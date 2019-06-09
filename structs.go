@@ -219,25 +219,12 @@ type Channel struct {
 	ParentID int64 `json:"parent_id,string"`
 }
 
-func (g *Guild) Role(id int64) *Role {
-	for _, v := range g.Roles {
-		if v.ID == id {
-			return v
-		}
-	}
-
-	return nil
+func (c *Channel) GetChannelID() int64 {
+	return c.ID
 }
 
-func (g *Guild) Channel(id int64) *Channel {
-	for _, v := range g.Channels {
-		if v.ID == id {
-			return v
-		}
-	}
-
-	return nil
-
+func (c *Channel) GetGuildID() int64 {
+	return c.GuildID
 }
 
 // Mention returns a string which mentions the channel
@@ -435,6 +422,30 @@ type Guild struct {
 	SystemChannelID string `json:"system_channel_id"`
 }
 
+func (g *Guild) GetGuildID() int64 {
+	return g.ID
+}
+
+func (g *Guild) Role(id int64) *Role {
+	for _, v := range g.Roles {
+		if v.ID == id {
+			return v
+		}
+	}
+
+	return nil
+}
+
+func (g *Guild) Channel(id int64) *Channel {
+	for _, v := range g.Channels {
+		if v.ID == id {
+			return v
+		}
+	}
+
+	return nil
+}
+
 // A UserGuild holds a brief version of a Guild
 type UserGuild struct {
 	ID          int64  `json:"id,string"`
@@ -626,6 +637,10 @@ type Member struct {
 	Roles IDSlice `json:"roles,string"`
 }
 
+func (m *Member) GetGuildID() int64 {
+	return m.GuildID
+}
+
 // A Settings stores data for a specific users Discord client settings.
 type Settings struct {
 	RenderEmbeds           bool               `json:"render_embeds"`
@@ -695,6 +710,10 @@ type Ack struct {
 type GuildRole struct {
 	Role    *Role `json:"role"`
 	GuildID int64 `json:"guild_id,string"`
+}
+
+func (e *GuildRole) GetGuildID() int64 {
+	return e.GuildID
 }
 
 // A GuildBan stores data for a guild ban.
@@ -843,10 +862,25 @@ type MessageReaction struct {
 	GuildID   int64 `json:"guild_id,string,omitempty"`
 }
 
+func (mr *MessageReaction) GetGuildID() int64 {
+	return mr.GuildID
+}
+
+func (mr *MessageReaction) GetChannelID() int64 {
+	return mr.ChannelID
+}
+
 // GatewayBotResponse stores the data for the gateway/bot response
 type GatewayBotResponse struct {
-	URL    string `json:"url"`
-	Shards int    `json:"shards"`
+	URL               string            `json:"url"`
+	Shards            int               `json:"shards"`
+	SessionStartLimit SessionStartLimit `json:"session_start_limit"`
+}
+
+type SessionStartLimit struct {
+	Total      int   `json:"total"`
+	Remaining  int   `json:"remaining"`
+	ResetAfter int64 `json:"reset_after"`
 }
 
 type OptionalRequestHeaders struct {

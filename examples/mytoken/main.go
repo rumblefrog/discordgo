@@ -3,38 +3,34 @@ package main
 import (
 	"flag"
 	"fmt"
-	"os"
 
+<<<<<<< HEAD
 	"github.com/rumblefrog/discordgo"
+=======
+	"github.com/jonas747/discordgo"
+>>>>>>> jonas747-yagpdb
 )
 
 // Variables used for command line parameters
 var (
-	Email    string
-	Password string
+	Token string
 )
 
 func init() {
 
-	flag.StringVar(&Email, "e", "", "Account Email")
-	flag.StringVar(&Password, "p", "", "Account Password")
+	flag.StringVar(&Token, "t", "", "Account Token")
 	flag.Parse()
-
-	if Email == "" || Password == "" {
-		flag.Usage()
-		os.Exit(1)
-	}
 }
 
 func main() {
 
 	// Create a new Discord session using the provided login information.
-	dg, err := discordgo.New(Email, Password)
+	dg, err := discordgo.New(Token)
 	if err != nil {
 		fmt.Println("error creating Discord session,", err)
 		return
 	}
 
-	// Print out your token.
-	fmt.Printf("Your Authentication Token is:\n\n%s\n", dg.Token)
+	resp, err := dg.GatewayBot()
+	fmt.Printf("%#v\n\n%v\n", resp, err)
 }

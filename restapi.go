@@ -108,8 +108,6 @@ func (s *Session) RequestWithLockedBucket(method, urlStr, contentType string, b 
 
 	}
 
-	err = errors.Wrap(err, "exceeded max retries")
-
 	return
 }
 
@@ -2203,13 +2201,23 @@ func (s *Session) MessageReactionsRemoveAll(channelID, messageID int64) error {
 // messageID : The message ID.
 // emoji     : Either the unicode emoji for the reaction, or a guild emoji identifier.
 // limit     : max number of users to return (max 100)
-func (s *Session) MessageReactions(channelID, messageID int64, emoji string, limit int) (st []*User, err error) {
+func (s *Session) MessageReactions(channelID, messageID int64, emoji string, limit int, before, after int64) (st []*User, err error) {
 	uri := EndpointMessageReactions(channelID, messageID, EmojiName{emoji})
 
 	v := url.Values{}
 
 	if limit > 0 {
+		if limit > 100 {
+			limit = 100
+		}
+
 		v.Set("limit", strconv.Itoa(limit))
+	}
+
+	if before != 0 {
+		v.Set("before", strconv.FormatInt(before, 10))
+	} else if after != 0 {
+		v.Set("after", strconv.FormatInt(after, 10))
 	}
 
 	if len(v) > 0 {

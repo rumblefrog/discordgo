@@ -18,9 +18,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/gobwas/ws"
-	"github.com/gobwas/ws/wsutil"
-	"github.com/jonas747/gojay"
 	"io"
 	"math/rand"
 	"net"
@@ -30,6 +27,10 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/gobwas/ws"
+	"github.com/gobwas/ws/wsutil"
+	"github.com/jonas747/gojay"
 )
 
 var (
@@ -203,12 +204,12 @@ func (g *GatewayConnectionManager) Open() error {
 
 	g.session.log(LogInformational, "reconnecting voice connections")
 	for _, vc := range g.voiceConnections {
-		go func() {
-			g.session.log(LogInformational, "reconnecting voice connection: %d", vc.GuildID)
-			vc.Lock()
-			vc.gatewayConn = newConn
-			vc.Unlock()
-		}()
+		go func(voiceConn *VoiceConnection, gwc *GatewayConnectionManager) {
+			gwc.session.log(LogInformational, "reconnecting voice connection: %d", voiceConn.GuildID)
+			voiceConn.Lock()
+			voiceConn.gatewayConn = newConn
+			voiceConn.Unlock()
+		}(vc, g)
 		// go vc.reconnect(newConn)
 	}
 

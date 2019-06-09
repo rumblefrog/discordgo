@@ -87,6 +87,14 @@ type Message struct {
 	WebhookID int64 `json:"webhook_id,string"`
 }
 
+func (m *Message) GetGuildID() int64 {
+	return m.GuildID
+}
+
+func (m *Message) GetChannelID() int64 {
+	return m.ChannelID
+}
+
 // File stores info about files you e.g. send in messages.
 type File struct {
 	Name        string
