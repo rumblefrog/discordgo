@@ -76,7 +76,7 @@ func New(args ...interface{}) (s *Session, err error) {
 
 	s.Client.CheckRetry = CheckRetry
 	s.Client.RetryMax = s.MaxRestRetries
-	s.Client.Logger = &retryableLogger{}
+	//s.Client.Logger = &retryableLogger{}
 
 	// If no arguments are passed return the empty Session interface.
 	if args == nil {

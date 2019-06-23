@@ -84,6 +84,9 @@ type Message struct {
 	// The type of the message.
 	Type MessageType `json:"type"`
 
+	// Whether the message is pinned or not.
+	Pinned bool `json:"pinned"`
+
 	WebhookID int64 `json:"webhook_id,string"`
 }
 
