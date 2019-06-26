@@ -734,6 +734,20 @@ func (s *Session) GuildBans(guildID int64) (st []*GuildBan, err error) {
 	return
 }
 
+// GuildBan returns a ban object for the given user or a 404 not found if the ban cannot be found. Requires the BAN_MEMBERS permission.
+// guildID   : The ID of a Guild.
+func (s *Session) GuildBan(guildID, userID int64) (st *GuildBan, err error) {
+
+	body, err := s.RequestWithBucketID("GET", EndpointGuildBan(guildID, userID), nil, EndpointGuildBan(guildID, 0)+"/")
+	if err != nil {
+		return
+	}
+
+	err = unmarshal(body, &st)
+
+	return
+}
+
 // GuildBanCreate bans the given user from the given guild.
 // guildID   : The ID of a Guild.
 // userID    : The ID of a User
