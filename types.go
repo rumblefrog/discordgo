@@ -13,6 +13,7 @@ package discordgo
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/jonas747/gojay"
 	"net/http"
 	"strconv"
 	"strings"
@@ -118,6 +119,22 @@ func (ids IDSlice) MarshalJSON() ([]byte, error) {
 	return outPut, nil
 }
 
+// implement UnmarshalerJSONArray
+func (ids *IDSlice) UnmarshalJSONArray(dec *gojay.Decoder) error {
+	str := ""
+	if err := dec.String(&str); err != nil {
+		return err
+	}
+
+	parsed, err := strconv.ParseInt(str, 10, 64)
+	if err != nil {
+		return err
+	}
+
+	*ids = append(*ids, parsed)
+	return nil
+}
+
 type EmojiName struct {
 	string
 }
@@ -174,4 +191,16 @@ func (di *DiscordInt64) UnmarshalJSON(data []byte) error {
 
 	*di = DiscordInt64(parsed)
 	return nil
+}
+
+func DecodeSnowflake(dst *int64, dec *gojay.Decoder) error {
+	var str string
+	err := dec.String(&str)
+	if err != nil {
+		return err
+	}
+
+	parsed, err := strconv.ParseInt(str, 10, 64)
+	*dst = parsed
+	return err
 }

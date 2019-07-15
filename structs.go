@@ -15,6 +15,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/hashicorp/go-retryablehttp"
+	"github.com/jonas747/gojay"
+	"github.com/pkg/errors"
 	"sync"
 	"time"
 )
@@ -386,7 +388,9 @@ type Guild struct {
 	// A list of voice states for the guild.
 	// This field is only present in GUILD_CREATE events and websocket
 	// update events, and thus is only present in state-cached guilds.
-	VoiceStates []*VoiceState `json:"voice_states"`
+	VoiceStates  []*VoiceState `json:"voice_states"`
+	MaxPresences int           `json:"max_presences"`
+	MaxMembers   int           `json:"max_members"`
 
 	// Whether this guild is currently unavailable (most likely due to outage).
 	// This field is only present in GUILD_CREATE events and websocket
@@ -523,12 +527,44 @@ type VoiceState struct {
 
 // A Presence stores the online, offline, or idle and game status of Guild members.
 type Presence struct {
-	User   *User         `json:"user"`
-	Status Status        `json:"status"`
-	Game   *Game         `json:"game"`
-	Nick   string        `json:"nick"`
-	Roles  IDSlice       `json:"roles,string"`
-	Since  *DiscordInt64 `json:"since"`
+	User   *User   `json:"user"`
+	Status Status  `json:"status"`
+	Game   *Game   `json:"game"`
+	Nick   string  `json:"nick"`
+	Roles  IDSlice `json:"roles,string"`
+
+	// not decoded
+	Since int64 `json:"since"`
+}
+
+// implement gojay.UnmarshalerJSONObject
+func (p *Presence) UnmarshalJSONObject(dec *gojay.Decoder, key string) error {
+	var err error
+	switch key {
+	case "user":
+		p.User = &User{}
+		err = dec.Object(p.User)
+	case "status":
+		err = dec.String((*string)(&p.Status))
+	case "game":
+		p.Game = &Game{}
+		err = dec.Object(p.Game)
+	case "nick":
+		err = dec.String(&p.Nick)
+	case "roles":
+		err = dec.DecodeArray(&p.Roles)
+	default:
+	}
+
+	if err != nil {
+		return errors.Wrap(err, key)
+	}
+
+	return nil
+}
+
+func (p *Presence) NKeys() int {
+	return 0
 }
 
 // GameType is the type of "game" (see GameType* consts) in the Game struct
@@ -554,6 +590,34 @@ type Game struct {
 	ApplicationID string     `json:"application_id,omitempty"`
 	Instance      int8       `json:"instance,omitempty"`
 	// TODO: Party and Secrets (unknown structure)
+}
+
+// implement gojay.UnmarshalerJSONObject
+func (g *Game) UnmarshalJSONObject(dec *gojay.Decoder, key string) error {
+	switch key {
+	case "name":
+		return dec.String(&g.Name)
+	case "type":
+		return dec.Int((*int)(&g.Type))
+	case "url":
+		return dec.String(&g.URL)
+	case "details":
+		return dec.String(&g.Details)
+	case "state":
+		return dec.String(&g.State)
+	case "timestamps":
+	case "assets":
+	case "application_id":
+		return dec.String(&g.ApplicationID)
+	case "instance":
+		return dec.Int8(&g.Instance)
+	}
+
+	return nil
+}
+
+func (g *Game) NKeys() int {
+	return 0
 }
 
 // A TimeStamps struct contains start and end times used in the rich presence "playing .." Game

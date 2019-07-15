@@ -2,6 +2,7 @@ package discordgo
 
 import (
 	"github.com/jonas747/gojay"
+	"github.com/pkg/errors"
 )
 
 // This file contains all the possible structs that can be
@@ -25,7 +26,6 @@ type RateLimit struct {
 }
 
 // Event provides a basic initial struct for all websocket events.
-//easyjson:json
 type Event struct {
 	Operation GatewayOP          `json:"op"`
 	Sequence  int64              `json:"s"`
@@ -255,6 +255,7 @@ type MessageReactionRemoveAll struct {
 type PresencesReplace []*Presence
 
 // PresenceUpdate is the data for a PresenceUpdate event.
+//easyjson:json
 type PresenceUpdate struct {
 	Presence
 	GuildID int64 `json:"guild_id,string"`
@@ -262,6 +263,20 @@ type PresenceUpdate struct {
 
 func (e *PresenceUpdate) GetGuildID() int64 {
 	return e.GuildID
+}
+
+// implement gojay.UnmarshalerJSONObject
+func (p *PresenceUpdate) UnmarshalJSONObject(dec *gojay.Decoder, key string) error {
+	switch key {
+	case "guild_id":
+		return errors.Wrap(DecodeSnowflake(&p.GuildID, dec), key)
+	default:
+		return p.Presence.UnmarshalJSONObject(dec, key)
+	}
+}
+
+func (p *PresenceUpdate) NKeys() int {
+	return 0
 }
 
 // Resumed is the data for a Resumed event.
