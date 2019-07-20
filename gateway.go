@@ -1111,7 +1111,8 @@ func (g *GatewayConnection) identify() error {
 		Properties:     properties,
 		LargeThreshold: 250,
 		// Compress:      g.manager.session.Compress, // this is no longer needed since we use zlib-steam anyways
-		Shard: nil,
+		Shard:              nil,
+		GuildSubscriptions: true,
 	}
 
 	if g.manager.shardCount > 1 {
@@ -1195,11 +1196,12 @@ type outgoingEvent struct {
 }
 
 type identifyData struct {
-	Token          string             `json:"token"`
-	Properties     identifyProperties `json:"properties"`
-	LargeThreshold int                `json:"large_threshold"`
-	Compress       bool               `json:"compress"`
-	Shard          *[2]int            `json:"shard,omitempty"`
+	Token              string             `json:"token"`
+	Properties         identifyProperties `json:"properties"`
+	LargeThreshold     int                `json:"large_threshold"`
+	Compress           bool               `json:"compress"`
+	GuildSubscriptions bool               `json:"guild_subscriptions"`
+	Shard              *[2]int            `json:"shard,omitempty"`
 }
 
 type identifyProperties struct {
