@@ -294,12 +294,34 @@ type RelationshipRemove struct {
 	*Relationship
 }
 
+var _ gojay.UnmarshalerJSONObject = (*TypingStart)(nil)
+
 // TypingStart is the data for a TypingStart event.
 type TypingStart struct {
 	UserID    int64 `json:"user_id,string"`
 	ChannelID int64 `json:"channel_id,string"`
 	Timestamp int   `json:"timestamp"`
 	GuildID   int64 `json:"guild_id,string,omitempty"`
+}
+
+// implement gojay.UnmarshalerJSONObject
+func (ts *TypingStart) UnmarshalJSONObject(dec *gojay.Decoder, key string) error {
+	switch key {
+	case "user_id":
+		return DecodeSnowflake(&ts.UserID, dec)
+	case "channel_id":
+		return DecodeSnowflake(&ts.ChannelID, dec)
+	case "guild_id":
+		return DecodeSnowflake(&ts.GuildID, dec)
+	case "timestamp":
+		return dec.Int(&ts.Timestamp)
+	}
+
+	return nil
+}
+
+func (ts *TypingStart) NKeys() int {
+	return 0
 }
 
 func (e *TypingStart) GetGuildID() int64 {
