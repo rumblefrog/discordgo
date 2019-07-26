@@ -30,12 +30,18 @@ import (
 const VERSION = "1.0.3"
 
 // ErrMFA will be risen by New when the user has 2FA.
-var ErrMFA = errors.New("account has 2FA enabled")
+var ErrMFA = errors.New("account has 2FA enabled, try calling Login")
 
 type Login struct {
-	Email    string
-	Password string
-	Token    string
+	// Use either these 2
+	Email    string `json:"email"`
+	Password string `json:"password"`
+
+	// Or this
+	Token string `json:"-"`
+
+	// Optionally use this with login
+	MFA string `json:"-"`
 }
 
 // New creates a new Discord session and will automate some startup
@@ -98,13 +104,11 @@ func New(l Login) (s *Session, err error) {
 	if pass == "" {
 		s.Token = auth
 	} else {
-		err = s.Login(auth, pass)
+		err = s.Login(l.Email, l.Password, l.MFA)
 		if err != nil || s.Token == "" {
-			if s.MFA {
-				err = ErrMFA
-			} else {
-				err = fmt.Errorf("Unable to fetch discord authentication token. %v", err)
-			}
+			err = fmt.Errorf(
+				"Unable to fetch discord authentication token: %v", err,
+			)
 
 			return
 		}

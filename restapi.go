@@ -192,6 +192,18 @@ func unmarshal(data []byte, v interface{}) error {
 	return nil
 }
 
+type TOTP struct {
+	Code   string `json:"code"`
+	Ticket string `json:"ticket"`
+}
+
+type LoginResponse struct {
+	MFA    bool   `json:"mfa"`
+	SMS    bool   `json:"sms"`
+	Ticket string `json:"string"`
+	Token  string `json:"token"`
+}
+
 // ------------------------------------------------------------------------------------------------
 // Functions specific to Discord Sessions
 // ------------------------------------------------------------------------------------------------
@@ -203,38 +215,70 @@ func unmarshal(data []byte, v interface{}) error {
 // and then use that authentication token for all future connections.
 // Also, doing any form of automation with a user (non Bot) account may result
 // in that account being permanently banned from Discord.
-func (s *Session) Login(email, password string) (err error) {
+func (s *Session) Login(email, password, mfa string) (err error) {
+	var login LoginResponse
 
-	data := struct {
-		Email    string `json:"email"`
-		Password string `json:"password"`
-	}{email, password}
+	if s.mfaTicket == "" {
+		data := Login{
+			Email:    email,
+			Password: password,
+		}
 
-	response, err := s.RequestWithBucketID("POST", EndpointLogin, data, EndpointLogin)
-	if err != nil {
-		return
+		resp, err := s.RequestWithBucketID(
+			"POST", EndpointLogin, data, EndpointLogin,
+		)
+
+		if err != nil {
+			return err
+		}
+
+		if err := unmarshal(resp, &login); err != nil {
+			return err
+		}
 	}
 
-	temp := struct {
-		Token string `json:"token"`
-		MFA   bool   `json:"mfa"`
-	}{}
+	if login.MFA {
+		if mfa != "" {
+			// An MFA ticket already exists, redundant to retry logging in
+			l, err := s.TOTP(s.mfaTicket, mfa)
+			if err != nil {
+				return err
+			}
 
-	err = unmarshal(response, &temp)
-	if err != nil {
-		return
+			login = *l
+		} else {
+			return ErrMFA
+		}
 	}
 
-	s.Token = temp.Token
-	s.MFA = temp.MFA
+	s.Token = login.Token
+	s.MFA = login.MFA
 	return
+}
+
+func (s *Session) TOTP(ticket, code string) (*LoginResponse, error) {
+	totp := TOTP{ticket, code}
+
+	resp, err := s.RequestWithBucketID(
+		"POST", EndpointTOTP, totp, EndpointTOTP,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	var login LoginResponse
+	if err = unmarshal(resp, &login); err != nil {
+		return nil, err
+	}
+
+	return &login, nil
 }
 
 // Register sends a Register request to Discord, and returns the authentication token
 // Note that this account is temporary and should be verified for future use.
 // Another option is to save the authentication token external, but this isn't recommended.
 func (s *Session) Register(username string) (token string, err error) {
-
 	data := struct {
 		Username string `json:"username"`
 	}{username}
