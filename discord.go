@@ -32,6 +32,12 @@ const VERSION = "1.0.3"
 // ErrMFA will be risen by New when the user has 2FA.
 var ErrMFA = errors.New("account has 2FA enabled")
 
+type Login struct {
+	Email    string
+	Password string
+	Token    string
+}
+
 // New creates a new Discord session and will automate some startup
 // tasks if given enough information to do so.  Currently you can pass zero
 // arguments and it will return an empty Discord session.
@@ -51,8 +57,7 @@ var ErrMFA = errors.New("account has 2FA enabled")
 // and then use that authentication token for all future connections.
 // Also, doing any form of automation with a user (non Bot) account may result
 // in that account being permanently banned from Discord.
-func New(args ...interface{}) (s *Session, err error) {
-
+func New(l Login) (s *Session, err error) {
 	// Create an empty Session interface.
 	s = &Session{
 		State:                  NewState(),
@@ -78,64 +83,13 @@ func New(args ...interface{}) (s *Session, err error) {
 	s.Client.RetryMax = s.MaxRestRetries
 	//s.Client.Logger = &retryableLogger{}
 
-	// If no arguments are passed return the empty Session interface.
-	if args == nil {
-		return
+	// Parse the login struct
+	if l.Token != "" {
+		s.Token = l.Token
 	}
 
-	// Variables used below when parsing func arguments
-	var auth, pass string
-
-	// Parse passed arguments
-	for _, arg := range args {
-
-		switch v := arg.(type) {
-
-		case []string:
-			if len(v) > 3 {
-				err = fmt.Errorf("too many string parameters provided")
-				return
-			}
-
-			// First string is either token or username
-			if len(v) > 0 {
-				auth = v[0]
-			}
-
-			// If second string exists, it must be a password.
-			if len(v) > 1 {
-				pass = v[1]
-			}
-
-			// If third string exists, it must be an auth token.
-			if len(v) > 2 {
-				s.Token = v[2]
-			}
-
-		case string:
-			// First string must be either auth token or username.
-			// Second string must be a password.
-			// Only 2 input strings are supported.
-
-			if auth == "" {
-				auth = v
-			} else if pass == "" {
-				pass = v
-			} else if s.Token == "" {
-				s.Token = v
-			} else {
-				err = fmt.Errorf("too many string parameters provided")
-				return
-			}
-
-			//		case Config:
-			// TODO: Parse configuration struct
-
-		default:
-			err = fmt.Errorf("unsupported parameter type provided")
-			return
-		}
-	}
+	auth := l.Email
+	pass := l.Password
 
 	// If only one string was provided, assume it is an auth token.
 	// Otherwise get auth token from Discord, if a token was specified
@@ -151,6 +105,7 @@ func New(args ...interface{}) (s *Session, err error) {
 			} else {
 				err = fmt.Errorf("Unable to fetch discord authentication token. %v", err)
 			}
+
 			return
 		}
 	}
