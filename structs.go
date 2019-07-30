@@ -209,6 +209,8 @@ type Channel struct {
 
 	// The ID of the parent channel, if the channel is under a category
 	ParentID int64 `json:"parent_id,string"`
+
+	RateLimitPerUser int `json:"rate_limit_per_user"`
 }
 
 func (c *Channel) GetChannelID() int64 {
