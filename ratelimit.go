@@ -84,17 +84,31 @@ func (r *RateLimiter) GetBucket(key string) *Bucket {
 func (r *RateLimiter) GetWaitTime(b *Bucket, minRemaining int) time.Duration {
 	// If we ran out of calls and the reset time is still ahead of us
 	// then we need to take it easy and relax a little
+
+	wait := time.Duration(0)
 	if b.Remaining < minRemaining && b.reset.After(time.Now()) {
-		return b.reset.Sub(time.Now())
+		wait = b.reset.Sub(time.Now())
 	}
 
 	// Check for global ratelimits
 	sleepTo := time.Unix(0, atomic.LoadInt64(r.global))
 	if now := time.Now(); now.Before(sleepTo) {
-		return sleepTo.Sub(now)
+
+		// time until the global ratelimit is over
+		globalWait := sleepTo.Sub(now)
+
+		if globalWait < wait {
+			// if the per route wait time is greater than the global wait time
+			// return the per route wait time
+			return wait
+		}
+
+		// otherwise return the global wait
+		return globalWait
 	}
 
-	return 0
+	// either 0 or the per route wait time
+	return wait
 }
 
 // LockBucket Locks until a request can be made
