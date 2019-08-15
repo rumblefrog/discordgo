@@ -207,6 +207,12 @@ func (s *Session) handle(t string, i interface{}) {
 
 // Handles an event type by calling internal methods, firing handlers and firing the
 // interface{} event.
+func (s *Session) HandleEvent(t string, i interface{}) {
+	s.handleEvent(t, i)
+}
+
+// Handles an event type by calling internal methods, firing handlers and firing the
+// interface{} event.
 func (s *Session) handleEvent(t string, i interface{}) {
 	s.handlersMu.RLock()
 	defer s.handlersMu.RUnlock()
