@@ -127,6 +127,10 @@ func (r *RateLimiter) LockBucketObject(b *Bucket) *Bucket {
 	return b
 }
 
+func (r *RateLimiter) SetGlobalTriggered(to time.Time) {
+	atomic.StoreInt64(r.global, to.UnixNano())
+}
+
 // Bucket represents a ratelimit bucket, each bucket gets ratelimited individually (-global ratelimits)
 type Bucket struct {
 	sync.Mutex
