@@ -749,6 +749,7 @@ type TooManyRequests struct {
 	Bucket     string        `json:"bucket"`
 	Message    string        `json:"message"`
 	RetryAfter time.Duration `json:"retry_after"`
+	Global     bool          `json:"global"`
 }
 
 // A ReadState stores data on the read state of channels.
