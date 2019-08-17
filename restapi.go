@@ -187,6 +187,9 @@ func (s *Session) doRequestLockedBucket(method, urlStr, contentType string, b []
 			s.log(LogError, "rate limit unmarshal error, %s, %q", err, string(response))
 			return
 		}
+
+		rl.Bucket = bucket.Key
+
 		s.log(LogInformational, "Rate Limiting %s, retry in %d", urlStr, rl.RetryAfter)
 		s.handleEvent(rateLimitEventType, &RateLimit{TooManyRequests: &rl, URL: urlStr})
 
