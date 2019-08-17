@@ -124,16 +124,25 @@ func (r *RateLimiter) LockBucketObject(b *Bucket) *Bucket {
 		time.Sleep(wait)
 	}
 
+	didWaitForMaxCCR := false
 	if r.MaxConcurrentRequests > 0 {
 		// sleep until were below the maximum
 		for {
 			numNow := atomic.AddInt32(r.numConcurrentLocks, 1)
 			if int(numNow) >= r.MaxConcurrentRequests {
 				atomic.AddInt32(r.numConcurrentLocks, -1)
+				didWaitForMaxCCR = true
 				time.Sleep(time.Millisecond * 25)
 			} else {
 				break
 			}
+		}
+	}
+
+	if didWaitForMaxCCR {
+		// If things changed while waiting for max ccr (like a global ratelimit)
+		if wait := r.GetWaitTime(b, 1); wait > 0 {
+			time.Sleep(wait)
 		}
 	}
 
