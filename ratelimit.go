@@ -35,13 +35,15 @@ func NewRatelimiter() *RateLimiter {
 		buckets:            make(map[string]*Bucket),
 		global:             new(int64),
 		numConcurrentLocks: new(int32),
-		customRateLimits: []*customRateLimit{
-			&customRateLimit{
-				suffix:   "/reactions//",
-				requests: 1,
-				reset:    250 * time.Millisecond,
-			},
-		},
+
+		// with higher precision ratelimit headers enabled, this is no longer needed
+		// customRateLimits: []*customRateLimit{
+		// 	&customRateLimit{
+		// 		suffix:   "/reactions//",
+		// 		requests: 1,
+		// 		reset:    250 * time.Millisecond,
+		// 	},
+		// },
 	}
 }
 
@@ -194,17 +196,28 @@ func (b *Bucket) Release(headers http.Header) error {
 		return nil
 	}
 
-	remaining := headers.Get("X-RateLimit-Remaining")
-	reset := headers.Get("X-RateLimit-Reset")
-	global := headers.Get("X-RateLimit-Global")
-	retryAfter := headers.Get("Retry-After")
+	// X-RateLimit-Reset is a fixed point in time, unix time in seconds (represented as a float with millisecond precision if that's enabled)
+	// while X-RateLimit-Reset-After is a duration after the current time the ratelimit resets in seconds (represented as a float with millisecond precision if that's enabled)
+	// reset-after is a newer addition, as well as millisecond precision
+	//
+	// The original implementation used the fixed time "reset" header and the date header to avoid any need to synchronize the system time, but since the date header
+	// does not provide millisecond precision, it's somewhat inaccurate for fast ratelimits (such as the react ones with 250ms/1)
+	// The reset-after was found to be more reliable, even my dev case from europe over wifi, so that's why i switched to that.
+	//
+	// You could argue that syncronizing the system time and using the fixed time "reset" header instead is more reliable
+	// but if your time becomes out of sync by just 1 second you will be hit with a wave of 429's and with discords new strict limits on those,
+	// you could very well get temp banned easily for a hour if you're a big bot, making thousands of requests every minute.
+	//
+	// So reset-after is the best and most reliable choice here, at-least as a default.
+	resetAfter := headers.Get("X-RateLimit-Reset-After")
 
 	// Update global and per bucket reset time if the proper headers are available
 	// If global is set, then it will block all buckets until after Retry-After
 	// If Retry-After without global is provided it will use that for the new reset
 	// time since it's more accurate than X-RateLimit-Reset.
-	// If Retry-After after is not proided, it will update the reset time from X-RateLimit-Reset
+	retryAfter := headers.Get("Retry-After")
 	if retryAfter != "" {
+
 		parsedAfter, err := strconv.ParseInt(retryAfter, 10, 64)
 		if err != nil {
 			return err
@@ -213,32 +226,23 @@ func (b *Bucket) Release(headers http.Header) error {
 		resetAt := time.Now().Add(time.Duration(parsedAfter) * time.Millisecond)
 
 		// Lock either this single bucket or all buckets
+		global := headers.Get("X-RateLimit-Global")
 		if global != "" {
 			atomic.StoreInt64(b.global, resetAt.UnixNano())
 		} else {
 			b.reset = resetAt
 		}
-	} else if reset != "" {
-		// Calculate the reset time by using the date header returned from discord
-		discordTime, err := http.ParseTime(headers.Get("Date"))
+	} else if resetAfter != "" {
+		resetAfterParsed, err := strconv.ParseFloat(resetAfter, 64)
 		if err != nil {
 			return err
 		}
 
-		unix, err := strconv.ParseInt(reset, 10, 64)
-		if err != nil {
-			return err
-		}
-
-		// Calculate the time until reset and add it to the current local time
-		// some extra time is added because without it i still encountered 429's.
-		// The added amount is the lowest amount that gave no 429's
-		// in 1k requests
-		delta := time.Unix(unix, 0).Sub(discordTime) + time.Millisecond*250
-		b.reset = time.Now().Add(delta)
+		b.reset = time.Now().Add(time.Millisecond * time.Duration(resetAfterParsed*1000))
 	}
 
 	// Udpate remaining if header is present
+	remaining := headers.Get("X-RateLimit-Remaining")
 	if remaining != "" {
 		parsedRemaining, err := strconv.ParseInt(remaining, 10, 32)
 		if err != nil {

@@ -131,6 +131,7 @@ func (s *Session) doRequestLockedBucket(method, urlStr, contentType string, b []
 	req.Header.Set("Content-Type", contentType)
 	// TODO: Make a configurable static variable.
 	req.Header.Set("User-Agent", fmt.Sprintf("DiscordBot (https://github.com/jonas747/discordgo, v%s)", VERSION))
+	req.Header.Set("X-RateLimit-Precision", "millisecond")
 
 	if s.Debug {
 		for k, v := range req.Header {
