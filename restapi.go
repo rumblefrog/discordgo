@@ -161,6 +161,8 @@ func (s *Session) doRequestLockedBucket(method, urlStr, contentType string, b []
 		return nil, true, false, err
 	}
 
+	log.Println(string(response))
+
 	if s.Debug {
 
 		log.Printf("API RESPONSE  STATUS :: %s\n", resp.Status)
@@ -170,7 +172,7 @@ func (s *Session) doRequestLockedBucket(method, urlStr, contentType string, b []
 		log.Printf("API RESPONSE    BODY :: [%s]\n\n\n", response)
 	}
 
-	if resp.StatusCode >= 200 || resp.StatusCode < 300 {
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 		return
 	}
 
