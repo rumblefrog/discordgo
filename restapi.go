@@ -161,8 +161,6 @@ func (s *Session) doRequestLockedBucket(method, urlStr, contentType string, b []
 		return nil, true, false, err
 	}
 
-	log.Println(string(response))
-
 	if s.Debug {
 
 		log.Printf("API RESPONSE  STATUS :: %s\n", resp.Status)
