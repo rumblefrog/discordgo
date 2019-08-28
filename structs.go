@@ -14,9 +14,9 @@ package discordgo
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/hashicorp/go-retryablehttp"
 	"github.com/jonas747/gojay"
 	"github.com/pkg/errors"
+	"net/http"
 	"sync"
 	"time"
 )
@@ -60,7 +60,7 @@ type Session struct {
 	State *State
 
 	// The http client used for REST requests
-	Client *retryablehttp.Client
+	Client *http.Client
 
 	// Stores the last HeartbeatAck that was recieved (in UTC)
 	LastHeartbeatAck time.Time

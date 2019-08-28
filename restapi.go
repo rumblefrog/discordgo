@@ -14,7 +14,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/hashicorp/go-retryablehttp"
 	"github.com/pkg/errors"
 	"image"
 	_ "image/jpeg" // For JPEG decoding
@@ -97,7 +96,7 @@ func (s *Session) RequestWithLockedBucket(method, urlStr, contentType string, b 
 		if ratelimited {
 			i = 0
 		} else {
-			time.Sleep(time.Second)
+			time.Sleep(time.Second * time.Duration(i))
 		}
 
 	}
@@ -112,7 +111,7 @@ func (s *Session) doRequestLockedBucket(method, urlStr, contentType string, b []
 		log.Printf("API REQUEST  PAYLOAD :: [%s]\n", string(b))
 	}
 
-	req, err := retryablehttp.NewRequest(method, urlStr, b)
+	req, err := http.NewRequest(method, urlStr, bytes.NewReader(b))
 	if err != nil {
 		bucket.Release(nil)
 		return
@@ -159,7 +158,7 @@ func (s *Session) doRequestLockedBucket(method, urlStr, contentType string, b []
 
 	response, err = ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return
+		return nil, true, false, err
 	}
 
 	if s.Debug {
@@ -171,10 +170,11 @@ func (s *Session) doRequestLockedBucket(method, urlStr, contentType string, b []
 		log.Printf("API RESPONSE    BODY :: [%s]\n\n\n", response)
 	}
 
+	if resp.StatusCode >= 200 || resp.StatusCode < 300 {
+		return
+	}
+
 	switch resp.StatusCode {
-	case http.StatusOK:
-	case http.StatusCreated:
-	case http.StatusNoContent:
 	case http.StatusBadGateway, http.StatusGatewayTimeout:
 		// Retry sending request if possible
 		err = errors.Errorf("%s Failed (%s)", urlStr, resp.Status)
@@ -204,9 +204,14 @@ func (s *Session) doRequestLockedBucket(method, urlStr, contentType string, b []
 			s.log(LogInformational, ErrUnauthorized.Error())
 			err = ErrUnauthorized
 		}
-		fallthrough
+		err = newRestError(req, resp, response)
 	default: // Error condition
-		err = newRestError(req.Request, resp, response)
+		if resp.StatusCode >= 500 || resp.StatusCode < 400 {
+			// non 400 response code
+			retry = true
+		}
+
+		err = newRestError(req, resp, response)
 	}
 
 	return
