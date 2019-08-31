@@ -158,6 +158,8 @@ const (
 	ChannelTypeGuildVoice
 	ChannelTypeGroupDM
 	ChannelTypeGuildCategory
+	ChannelTypeGuildNews
+	ChannelTypeGuildStore
 )
 
 // A Channel holds all data related to an individual Discord channel.
