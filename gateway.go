@@ -139,6 +139,8 @@ type GatewayConnectionManager struct {
 	sequence  int64
 
 	idCounter int
+
+	authFailed bool
 }
 
 func (s *GatewayConnectionManager) SetSessionInfo(sessionID string, sequence int64) {
@@ -162,6 +164,8 @@ func (s *Session) Open() error {
 	return s.GatewayManager.Open()
 }
 
+var ErrBadAuth = errors.New("Authentication failed")
+
 func (g *GatewayConnectionManager) Open() error {
 	g.session.log(LogInformational, " called")
 
@@ -169,6 +173,11 @@ func (g *GatewayConnectionManager) Open() error {
 	defer g.openmu.Unlock()
 
 	g.mu.Lock()
+	if g.authFailed {
+		g.mu.Unlock()
+		return ErrBadAuth
+	}
+
 	if g.currentConnection != nil {
 		cc := g.currentConnection
 		g.currentConnection = nil
@@ -907,6 +916,10 @@ func (g *GatewayConnection) handleCloseFrame(data []byte) {
 
 	go func() {
 		if code == 4004 {
+			g.manager.mu.Lock()
+			g.manager.authFailed = true
+			g.manager.mu.Unlock()
+
 			g.Close()
 			g.log(LogError, "Authentication failed")
 		} else {
