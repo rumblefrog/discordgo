@@ -4,11 +4,7 @@ import (
 	"flag"
 	"fmt"
 
-<<<<<<< HEAD
 	"github.com/rumblefrog/discordgo"
-=======
-	"github.com/jonas747/discordgo"
->>>>>>> jonas747-yagpdb
 )
 
 // Variables used for command line parameters
