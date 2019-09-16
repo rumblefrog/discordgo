@@ -14,7 +14,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/pkg/errors"
 	"image"
 	_ "image/jpeg" // For JPEG decoding
 	_ "image/png"  // For PNG decoding
@@ -28,6 +27,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/pkg/errors"
 )
 
 // All error constants
@@ -75,6 +76,12 @@ type ReaderWithMockClose struct {
 
 func (rwmc *ReaderWithMockClose) Close() error {
 	return nil
+}
+
+func (s *Session) SetNextRequestHeaders(headers OptionalRequestHeaders) {
+	s.onrhMu.Lock()
+	s.OptionalNextRequestHeaders = headers
+	s.onrhMu.Unlock()
 }
 
 // RequestWithLockedBucket makes a request using a bucket that's already been locked
@@ -128,9 +135,16 @@ func (s *Session) doRequestLockedBucket(method, urlStr, contentType string, b []
 	}
 
 	req.Header.Set("Content-Type", contentType)
-	// TODO: Make a configurable static variable.
-	req.Header.Set("User-Agent", fmt.Sprintf("DiscordBot (https://github.com/jonas747/discordgo, v%s)", VERSION))
+	req.Header.Set("User-Agent", s.UserAgent)
 	req.Header.Set("X-RateLimit-Precision", "millisecond")
+
+	// FIXME: Might create a race condition between other requests
+	s.onrhMu.Lock()
+	if s.OptionalNextRequestHeaders.AuditLogReason != "" {
+		req.Header.Set("X-Audit-Log-Reason", s.OptionalNextRequestHeaders.AuditLogReason)
+		s.OptionalNextRequestHeaders.AuditLogReason = ""
+	}
+	s.onrhMu.Unlock()
 
 	if s.Debug {
 		for k, v := range req.Header {

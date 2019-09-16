@@ -14,11 +14,12 @@ package discordgo
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/jonas747/gojay"
-	"github.com/pkg/errors"
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/jonas747/gojay"
+	"github.com/pkg/errors"
 )
 
 // A Session represents a connection to the Discord API.
@@ -70,6 +71,15 @@ type Session struct {
 
 	// The gateway websocket connection
 	GatewayManager *GatewayConnectionManager
+
+	// User agent to use in REST requests
+	UserAgent string
+
+	// Request headers to use for the very next request, should be set right before it fires
+	OptionalNextRequestHeaders OptionalRequestHeaders
+
+	// Mutex for next optional request headers
+	onrhMu sync.RWMutex
 
 	// Event handlers
 	handlersMu   sync.RWMutex
@@ -943,6 +953,10 @@ type SessionStartLimit struct {
 	ResetAfter int64 `json:"reset_after"`
 }
 
+type OptionalRequestHeaders struct {
+	AuditLogReason string
+}
+
 // Constants for the different bit offsets of text channel permissions
 const (
 	PermissionReadMessages = 1 << (iota + 10)
@@ -964,6 +978,7 @@ const (
 	PermissionVoiceDeafenMembers
 	PermissionVoiceMoveMembers
 	PermissionVoiceUseVAD
+	PermissionVoicePrioritySpeaker = 1 << (iota + 2)
 )
 
 // Constants for general management.
@@ -999,7 +1014,8 @@ const (
 		PermissionVoiceMuteMembers |
 		PermissionVoiceDeafenMembers |
 		PermissionVoiceMoveMembers |
-		PermissionVoiceUseVAD
+		PermissionVoiceUseVAD |
+		PermissionVoicePrioritySpeaker
 	PermissionAllChannel = PermissionAllText |
 		PermissionAllVoice |
 		PermissionCreateInstantInvite |

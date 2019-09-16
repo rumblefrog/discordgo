@@ -18,9 +18,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/gobwas/ws"
-	"github.com/gobwas/ws/wsutil"
-	"github.com/jonas747/gojay"
 	"io"
 	"math/rand"
 	"net"
@@ -30,6 +27,10 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/gobwas/ws"
+	"github.com/gobwas/ws/wsutil"
+	"github.com/jonas747/gojay"
 )
 
 var (
