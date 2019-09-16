@@ -13,11 +13,12 @@ package discordgo
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/jonas747/gojay"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/jonas747/gojay"
 )
 
 // Timestamp stores a timestamp, as sent by the Discord API.

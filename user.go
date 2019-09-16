@@ -2,8 +2,9 @@ package discordgo
 
 import (
 	"fmt"
-	"github.com/jonas747/gojay"
 	"strings"
+
+	"github.com/jonas747/gojay"
 )
 
 // A User stores all data for an individual Discord user.

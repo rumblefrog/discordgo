@@ -14,13 +14,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/gorilla/websocket"
-	"github.com/jonas747/gojay"
-	"golang.org/x/crypto/nacl/secretbox"
 	"net"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/gorilla/websocket"
+	"github.com/jonas747/gojay"
+	"golang.org/x/crypto/nacl/secretbox"
 )
 
 // ------------------------------------------------------------------------------------------------
