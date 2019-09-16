@@ -140,6 +140,8 @@ type GatewayConnectionManager struct {
 	sequence  int64
 
 	idCounter int
+
+	authFailed bool
 }
 
 func (s *GatewayConnectionManager) SetSessionInfo(sessionID string, sequence int64) {
@@ -163,6 +165,8 @@ func (s *Session) Open() error {
 	return s.GatewayManager.Open()
 }
 
+var ErrBadAuth = errors.New("Authentication failed")
+
 func (g *GatewayConnectionManager) Open() error {
 	g.session.log(LogInformational, " called")
 
@@ -170,6 +174,11 @@ func (g *GatewayConnectionManager) Open() error {
 	defer g.openmu.Unlock()
 
 	g.mu.Lock()
+	if g.authFailed {
+		g.mu.Unlock()
+		return ErrBadAuth
+	}
+
 	if g.currentConnection != nil {
 		cc := g.currentConnection
 		g.currentConnection = nil
@@ -489,11 +498,12 @@ type GatewayConnection struct {
 	// contains the raw message fragments until we have received them all
 	readMessageBuffer *bytes.Buffer
 
-	zlibReader            io.Reader
-	jsonDecoder           *gojay.Decoder
-	teeReader             io.Reader
-	secondPassJsonDecoder *json.Decoder
-	secondPassBuf         *bytes.Buffer
+	zlibReader             io.Reader
+	jsonDecoder            *gojay.Decoder
+	teeReader              io.Reader
+	secondPassJsonDecoder  *json.Decoder
+	secondPassGojayDecoder *gojay.Decoder
+	secondPassBuf          *bytes.Buffer
 
 	heartbeater *wsHeartBeater
 	writer      *wsWriter
@@ -519,6 +529,8 @@ func NewGatewayConnection(parent *GatewayConnectionManager, id int) *GatewayConn
 
 	secondPassJson := json.NewDecoder(gwc.secondPassBuf)
 	gwc.secondPassJsonDecoder = secondPassJson
+	gwc.secondPassGojayDecoder = gojay.NewDecoder(gwc.secondPassBuf)
+
 	return gwc
 }
 
@@ -905,6 +917,10 @@ func (g *GatewayConnection) handleCloseFrame(data []byte) {
 
 	go func() {
 		if code == 4004 {
+			g.manager.mu.Lock()
+			g.manager.authFailed = true
+			g.manager.mu.Unlock()
+
 			g.Close()
 			g.log(LogError, "Authentication failed")
 		} else {
@@ -941,6 +957,7 @@ func (g *GatewayConnection) handleReadMessage() {
 	defer g.decodedBuffer.Reset()
 
 	err := g.jsonDecoder.Decode(g.event)
+	g.jsonDecoder.Reset()
 	// g.log(LogInformational, "%s", g.decodedBuffer.String())
 	if err != nil {
 		go g.onError(err, "failed decoding incoming gateway event: %s", g.decodedBuffer.String())
@@ -1022,9 +1039,23 @@ func (g *GatewayConnection) handleDispatch(e *Event) error {
 		g.secondPassBuf.Write(e.RawData)
 
 		// Attempt to unmarshal our event.
-		if err := g.secondPassJsonDecoder.Decode(e.Struct); err != nil {
-			g.log(LogError, "error unmarshalling %s event, %s", e.Type, err)
+		if gojayDec, ok := e.Struct.(gojay.UnmarshalerJSONObject); ok {
+			// g.log(LogInformational, "Unmarshalling %s using gojay, %s", e.Type, g.secondPassBuf.String())
+
+			if err := g.secondPassGojayDecoder.Decode(gojayDec); err != nil {
+				g.log(LogError, "error unmarshalling %s (gojay) event, %s, %s", e.Type, err, g.secondPassBuf.String())
+			}
+
+			g.secondPassGojayDecoder.Reset()
+		} else {
+			if err := g.secondPassJsonDecoder.Decode(e.Struct); err != nil {
+				g.log(LogError, "error unmarshalling %s event, %s", e.Type, err)
+			}
 		}
+
+		// if err := g.secondPassJsonDecoder.Decode(e.Struct); err != nil {
+		// 	g.log(LogError, "error unmarshalling %s event, %s", e.Type, err)
+		// }
 
 		if rdy, ok := e.Struct.(*Ready); ok {
 			g.handleReady(rdy)
@@ -1094,7 +1125,8 @@ func (g *GatewayConnection) identify() error {
 		Properties:     properties,
 		LargeThreshold: 250,
 		// Compress:      g.manager.session.Compress, // this is no longer needed since we use zlib-steam anyways
-		Shard: nil,
+		Shard:              nil,
+		GuildSubscriptions: true,
 	}
 
 	if g.manager.shardCount > 1 {
@@ -1178,11 +1210,12 @@ type outgoingEvent struct {
 }
 
 type identifyData struct {
-	Token          string             `json:"token"`
-	Properties     identifyProperties `json:"properties"`
-	LargeThreshold int                `json:"large_threshold"`
-	Compress       bool               `json:"compress"`
-	Shard          *[2]int            `json:"shard,omitempty"`
+	Token              string             `json:"token"`
+	Properties         identifyProperties `json:"properties"`
+	LargeThreshold     int                `json:"large_threshold"`
+	Compress           bool               `json:"compress"`
+	GuildSubscriptions bool               `json:"guild_subscriptions"`
+	Shard              *[2]int            `json:"shard,omitempty"`
 }
 
 type identifyProperties struct {

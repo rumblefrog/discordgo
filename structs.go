@@ -14,10 +14,12 @@ package discordgo
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"sync"
 	"time"
 
-	"github.com/hashicorp/go-retryablehttp"
+	"github.com/jonas747/gojay"
+	"github.com/pkg/errors"
 )
 
 // A Session represents a connection to the Discord API.
@@ -59,7 +61,7 @@ type Session struct {
 	State *State
 
 	// The http client used for REST requests
-	Client *retryablehttp.Client
+	Client *http.Client
 
 	// Stores the last HeartbeatAck that was recieved (in UTC)
 	LastHeartbeatAck time.Time
@@ -166,6 +168,8 @@ const (
 	ChannelTypeGuildVoice
 	ChannelTypeGroupDM
 	ChannelTypeGuildCategory
+	ChannelTypeGuildNews
+	ChannelTypeGuildStore
 )
 
 // A Channel holds all data related to an individual Discord channel.
@@ -217,6 +221,8 @@ type Channel struct {
 
 	// The ID of the parent channel, if the channel is under a category
 	ParentID int64 `json:"parent_id,string"`
+
+	RateLimitPerUser int `json:"rate_limit_per_user"`
 }
 
 func (c *Channel) GetChannelID() int64 {
@@ -242,6 +248,7 @@ type ChannelEdit struct {
 	UserLimit            int                    `json:"user_limit,omitempty"`
 	PermissionOverwrites []*PermissionOverwrite `json:"permission_overwrites,omitempty"`
 	ParentID             string                 `json:"parent_id,omitempty"`
+	RateLimitPerUser     *int                   `json:"rate_limit_per_user,omitempty"`
 }
 
 // A PermissionOverwrite holds permission overwrite data for a Channel
@@ -396,7 +403,9 @@ type Guild struct {
 	// A list of voice states for the guild.
 	// This field is only present in GUILD_CREATE events and websocket
 	// update events, and thus is only present in state-cached guilds.
-	VoiceStates []*VoiceState `json:"voice_states"`
+	VoiceStates  []*VoiceState `json:"voice_states"`
+	MaxPresences int           `json:"max_presences"`
+	MaxMembers   int           `json:"max_members"`
 
 	// Whether this guild is currently unavailable (most likely due to outage).
 	// This field is only present in GUILD_CREATE events and websocket
@@ -533,12 +542,44 @@ type VoiceState struct {
 
 // A Presence stores the online, offline, or idle and game status of Guild members.
 type Presence struct {
-	User   *User         `json:"user"`
-	Status Status        `json:"status"`
-	Game   *Game         `json:"game"`
-	Nick   string        `json:"nick"`
-	Roles  IDSlice       `json:"roles,string"`
-	Since  *DiscordInt64 `json:"since"`
+	User   *User   `json:"user"`
+	Status Status  `json:"status"`
+	Game   *Game   `json:"game"`
+	Nick   string  `json:"nick"`
+	Roles  IDSlice `json:"roles,string"`
+
+	// not decoded
+	Since int64 `json:"since"`
+}
+
+// implement gojay.UnmarshalerJSONObject
+func (p *Presence) UnmarshalJSONObject(dec *gojay.Decoder, key string) error {
+	var err error
+	switch key {
+	case "user":
+		p.User = &User{}
+		err = dec.Object(p.User)
+	case "status":
+		err = dec.String((*string)(&p.Status))
+	case "game":
+		p.Game = &Game{}
+		err = dec.Object(p.Game)
+	case "nick":
+		err = dec.String(&p.Nick)
+	case "roles":
+		err = dec.DecodeArray(&p.Roles)
+	default:
+	}
+
+	if err != nil {
+		return errors.Wrap(err, key)
+	}
+
+	return nil
+}
+
+func (p *Presence) NKeys() int {
+	return 0
 }
 
 // GameType is the type of "game" (see GameType* consts) in the Game struct
@@ -564,6 +605,34 @@ type Game struct {
 	ApplicationID string     `json:"application_id,omitempty"`
 	Instance      int8       `json:"instance,omitempty"`
 	// TODO: Party and Secrets (unknown structure)
+}
+
+// implement gojay.UnmarshalerJSONObject
+func (g *Game) UnmarshalJSONObject(dec *gojay.Decoder, key string) error {
+	switch key {
+	case "name":
+		return dec.String(&g.Name)
+	case "type":
+		return dec.Int((*int)(&g.Type))
+	case "url":
+		return dec.String(&g.URL)
+	case "details":
+		return dec.String(&g.Details)
+	case "state":
+		return dec.String(&g.State)
+	case "timestamps":
+	case "assets":
+	case "application_id":
+		return dec.String(&g.ApplicationID)
+	case "instance":
+		return dec.Int8(&g.Instance)
+	}
+
+	return nil
+}
+
+func (g *Game) NKeys() int {
+	return 0
 }
 
 // A TimeStamps struct contains start and end times used in the rich presence "playing .." Game
@@ -692,6 +761,7 @@ type TooManyRequests struct {
 	Bucket     string        `json:"bucket"`
 	Message    string        `json:"message"`
 	RetryAfter time.Duration `json:"retry_after"`
+	Global     bool          `json:"global"`
 }
 
 // A ReadState stores data on the read state of channels.

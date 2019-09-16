@@ -2,6 +2,7 @@ package discordgo
 
 import (
 	"fmt"
+	"github.com/jonas747/gojay"
 	"strings"
 )
 
@@ -35,6 +36,30 @@ func (u *User) String() string {
 // Mention return a string which mentions the user
 func (u *User) Mention() string {
 	return fmt.Sprintf("<@%d>", u.ID)
+}
+
+// implement gojay.UnmarshalerJSONObject
+func (u *User) UnmarshalJSONObject(dec *gojay.Decoder, key string) error {
+	switch key {
+	case "id":
+		return DecodeSnowflake(&u.ID, dec)
+	case "username":
+		return dec.String(&u.Username)
+	case "avatar":
+		return dec.String(&u.Avatar)
+	case "locale":
+		return dec.String(&u.Locale)
+	case "discriminator":
+		return dec.String(&u.Discriminator)
+	case "bot":
+		return dec.Bool(&u.Bot)
+	}
+
+	return nil
+}
+
+func (u *User) NKeys() int {
+	return 0
 }
 
 // AvatarURL returns a URL to the user's avatar.

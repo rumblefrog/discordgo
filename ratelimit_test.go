@@ -18,7 +18,7 @@ func TestRatelimitReset(t *testing.T) {
 
 		headers.Set("X-RateLimit-Remaining", "0")
 		// Reset for approx 2 seconds from now
-		headers.Set("X-RateLimit-Reset", strconv.FormatInt(time.Now().Add(time.Second*2).Unix(), 10))
+		headers.Set("X-RateLimit-Reset-After", "2")
 		headers.Set("Date", time.Now().Format(time.RFC850))
 
 		err := bucket.Release(headers)

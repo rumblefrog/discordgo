@@ -23,7 +23,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hashicorp/go-retryablehttp"
+	"github.com/hashicorp/go-cleanhttp"
 )
 
 // VERSION of DiscordGo, follows Semantic Versioning. (http://semver.org/)
@@ -62,8 +62,8 @@ func New(args ...interface{}) (s *Session, err error) {
 		ShouldReconnectOnError: true,
 		ShardID:                0,
 		ShardCount:             1,
-		MaxRestRetries:         3,
-		Client:                 retryablehttp.NewClient(),
+		MaxRestRetries:         10,
+		Client:                 cleanhttp.DefaultPooledClient(),
 		LastHeartbeatAck:       time.Now().UTC(),
 	}
 
@@ -73,10 +73,6 @@ func New(args ...interface{}) (s *Session, err error) {
 	}
 
 	s.UserAgent = fmt.Sprintf("DiscordBot (https://github.com/rumblefrog/discordgo, v%s)", VERSION)
-
-	s.Client.CheckRetry = CheckRetry
-	s.Client.RetryMax = 10
-	s.Client.Logger = &retryableLogger{}
 
 	// If no arguments are passed return the empty Session interface.
 	if args == nil {
