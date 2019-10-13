@@ -14,13 +14,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/gorilla/websocket"
-	"github.com/jonas747/gojay"
-	"golang.org/x/crypto/nacl/secretbox"
 	"net"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/gorilla/websocket"
+	"github.com/jonas747/gojay"
+	"golang.org/x/crypto/nacl/secretbox"
 )
 
 // ------------------------------------------------------------------------------------------------
@@ -149,28 +150,19 @@ func (v *VoiceConnection) Disconnect() (err error) {
 
 	v.Lock()
 	// Send a OP4 with a nil channel to disconnect
-	if v.sessionID != "" {
+	strGID := StrID(v.GuildID)
 
-		strGID := StrID(v.GuildID)
-
-		data := outgoingEvent{
-			Operation: GatewayOPVoiceStateUpdate,
-			Data:      voiceChannelJoinData{&strGID, nil, true, true},
-		}
-
-		v.gatewayConn.writer.Queue(data)
-		v.sessionID = ""
+	data := outgoingEvent{
+		Operation: GatewayOPVoiceStateUpdate,
+		Data:      voiceChannelJoinData{&strGID, nil, true, true},
 	}
-	v.log(LogInformational, "Deleting VoiceConnection %d", v.GuildID)
+
+	v.gatewayConn.writer.Queue(data)
 
 	v.Unlock()
 
 	// Close websocket and udp connections
 	v.Close()
-
-	v.gatewayConnManager.mu.Lock()
-	delete(v.gatewayConnManager.voiceConnections, v.GuildID)
-	v.gatewayConnManager.mu.Unlock()
 
 	return
 }

@@ -18,9 +18,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/gobwas/ws"
-	"github.com/gobwas/ws/wsutil"
-	"github.com/jonas747/gojay"
 	"io"
 	"math/rand"
 	"net"
@@ -30,6 +27,10 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/gobwas/ws"
+	"github.com/gobwas/ws/wsutil"
+	"github.com/jonas747/gojay"
 )
 
 var (
@@ -382,17 +383,27 @@ func (g *GatewayConnectionManager) onVoiceStateUpdate(st *VoiceStateUpdate) {
 	}
 
 	// Check if we have a voice connection to update
-	g.mu.RLock()
+	g.mu.Lock()
 	voice, exists := g.voiceConnections[st.GuildID]
-	g.mu.RUnlock()
 	if !exists {
+		g.mu.Unlock()
 		return
 	}
 
 	// We only care about events that are about us.
 	if g.session.State.User.ID != st.UserID {
+		g.mu.Unlock()
 		return
 	}
+
+	if st.ChannelID == 0 {
+		g.session.log(LogInformational, "Deleting VoiceConnection %d", st.GuildID)
+		delete(g.voiceConnections, st.GuildID)
+		g.mu.Unlock()
+		return
+	}
+
+	g.mu.Unlock()
 
 	// Store the SessionID for later use.
 	voice.Lock()
