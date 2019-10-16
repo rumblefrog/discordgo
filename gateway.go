@@ -330,7 +330,8 @@ func (g *GatewayConnectionManager) ChannelVoiceJoin(gID, cID int64, mute, deaf b
 
 	g.mu.Lock()
 	if g.currentConnection == nil {
-		return nil, errors.New("bot connected to gateway")
+		g.mu.Unlock()
+		return nil, errors.New("bot not connected to gateway")
 	}
 	cc := g.currentConnection
 	g.mu.Unlock()
