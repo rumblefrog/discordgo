@@ -251,6 +251,7 @@ type voiceOP2 struct {
 	Port              int           `json:"port"`
 	Modes             []string      `json:"modes"`
 	HeartbeatInterval time.Duration `json:"heartbeat_interval"`
+	IP                string        `json:"ip"`
 }
 
 var ErrTimeoutWaitingForVoice = errors.New("timeout waiting for voice")
@@ -550,11 +551,11 @@ func (v *VoiceConnection) udpOpen() (err error) {
 		return fmt.Errorf("nil close channel")
 	}
 
-	if v.endpoint == "" {
+	if v.op2.IP == "" {
 		return fmt.Errorf("empty endpoint")
 	}
 
-	host := fmt.Sprintf("%s:%d", strings.TrimSuffix(v.endpoint, ":80"), v.op2.Port)
+	host := fmt.Sprintf("%s:%d", strings.TrimSuffix(v.op2.IP, ":80"), v.op2.Port)
 	addr, err := net.ResolveUDPAddr("udp", host)
 	if err != nil {
 		v.log(LogWarning, "error resolving udp host %s, %s", host, err)
@@ -572,6 +573,7 @@ func (v *VoiceConnection) udpOpen() (err error) {
 	// into it.  Then send that over the UDP connection to Discord
 	sb := make([]byte, 70)
 	binary.BigEndian.PutUint32(sb, v.op2.SSRC)
+	v.log(LogInformational, "op2 SSRC: %d", v.op2.SSRC)
 	_, err = v.udpConn.Write(sb)
 	if err != nil {
 		v.log(LogWarning, "udp write error to %s, %s", addr.String(), err)
@@ -616,6 +618,8 @@ func (v *VoiceConnection) udpOpen() (err error) {
 	// Take the data from above and send it back to Discord to finalize
 	// the UDP connection handshake.
 	data := voiceUDPOp{1, voiceUDPD{"udp", voiceUDPData{ip, port, "xsalsa20_poly1305"}}}
+
+	v.log(LogInformational, "External IP: %s, Port: %d", ip, port)
 
 	v.wsMutex.Lock()
 	err = v.wsConn.WriteJSON(data)
