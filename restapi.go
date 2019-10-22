@@ -12,9 +12,9 @@ package discordgo
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/pkg/errors"
 	"image"
 	_ "image/jpeg" // For JPEG decoding
 	_ "image/png"  // For PNG decoding
@@ -28,6 +28,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/pkg/errors"
 )
 
 // All error constants
@@ -104,6 +106,12 @@ func (s *Session) RequestWithLockedBucket(method, urlStr, contentType string, b 
 	return
 }
 
+type CtxKey int
+
+const (
+	CtxKeyRatelimitBucket CtxKey = iota
+)
+
 // RequestWithLockedBucket makes a request using a bucket that's already been locked
 func (s *Session) doRequestLockedBucket(method, urlStr, contentType string, b []byte, bucket *Bucket) (response []byte, retry bool, ratelimitRetry bool, err error) {
 	if s.Debug {
@@ -131,6 +139,10 @@ func (s *Session) doRequestLockedBucket(method, urlStr, contentType string, b []
 	// TODO: Make a configurable static variable.
 	req.Header.Set("User-Agent", fmt.Sprintf("DiscordBot (https://github.com/jonas747/discordgo, v%s)", VERSION))
 	req.Header.Set("X-RateLimit-Precision", "millisecond")
+
+	// for things such as stats collecting in the roundtripper for example
+	ctx := context.WithValue(req.Context(), CtxKeyRatelimitBucket, bucket)
+	req = req.WithContext(ctx)
 
 	if s.Debug {
 		for k, v := range req.Header {
