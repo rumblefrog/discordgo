@@ -27,6 +27,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/pkg/errors"
@@ -41,6 +42,7 @@ var (
 	ErrGuildNoIcon             = errors.New("guild does not have an icon set")
 	ErrGuildNoSplash           = errors.New("guild does not have a splash set")
 	ErrUnauthorized            = errors.New("HTTP request was unauthorized. This could be because the provided token was not a bot token. Please add \"Bot \" to the start of your token. https://discordapp.com/developers/docs/reference#authentication-example-bot-token-authorization-header")
+	ErrTokenInvalid            = errors.New("Invalid token provided, it has been marked as invalid")
 )
 
 // Request is the same as RequestWithBucketID but the bucket id is the same as the urlStr
@@ -117,6 +119,10 @@ func (s *Session) doRequestLockedBucket(method, urlStr, contentType string, b []
 	if s.Debug {
 		log.Printf("API REQUEST %8s :: %s\n", method, urlStr)
 		log.Printf("API REQUEST  PAYLOAD :: [%s]\n", string(b))
+	}
+
+	if atomic.LoadInt32(s.tokenInvalid) != 0 {
+		return nil, false, false, ErrTokenInvalid
 	}
 
 	req, err := http.NewRequest(method, urlStr, bytes.NewReader(b))
@@ -215,8 +221,10 @@ func (s *Session) doRequestLockedBucket(method, urlStr, contentType string, b []
 		if strings.Index(s.Token, "Bot ") != 0 {
 			s.log(LogInformational, ErrUnauthorized.Error())
 			err = ErrUnauthorized
+		} else {
+			atomic.StoreInt32(s.tokenInvalid, 1)
+			err = ErrTokenInvalid
 		}
-		err = newRestError(req, resp, response)
 	default: // Error condition
 		if resp.StatusCode >= 500 || resp.StatusCode < 400 {
 			// non 400 response code

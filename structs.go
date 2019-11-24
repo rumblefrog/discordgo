@@ -71,6 +71,8 @@ type Session struct {
 	// The gateway websocket connection
 	GatewayManager *GatewayConnectionManager
 
+	tokenInvalid *int32
+
 	// Event handlers
 	handlersMu   sync.RWMutex
 	handlers     map[string][]*eventHandlerInstance

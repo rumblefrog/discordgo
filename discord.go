@@ -64,6 +64,7 @@ func New(args ...interface{}) (s *Session, err error) {
 		MaxRestRetries:         10,
 		Client:                 cleanhttp.DefaultPooledClient(),
 		LastHeartbeatAck:       time.Now().UTC(),
+		tokenInvalid:           new(int32),
 	}
 
 	s.GatewayManager = &GatewayConnectionManager{
