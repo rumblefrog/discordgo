@@ -14,11 +14,12 @@ package discordgo
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/jonas747/gojay"
-	"github.com/pkg/errors"
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/jonas747/gojay"
+	"github.com/pkg/errors"
 )
 
 // A Session represents a connection to the Discord API.
@@ -540,6 +541,8 @@ type Presence struct {
 	Nick   string  `json:"nick"`
 	Roles  IDSlice `json:"roles,string"`
 
+	Activities Activities `json:"activities"`
+
 	// not decoded
 	Since int64 `json:"since"`
 }
@@ -560,6 +563,8 @@ func (p *Presence) UnmarshalJSONObject(dec *gojay.Decoder, key string) error {
 		err = dec.String(&p.Nick)
 	case "roles":
 		err = dec.DecodeArray(&p.Roles)
+	case "activities":
+		err = dec.DecodeArray(&p.Activities)
 	default:
 	}
 
@@ -572,6 +577,18 @@ func (p *Presence) UnmarshalJSONObject(dec *gojay.Decoder, key string) error {
 
 func (p *Presence) NKeys() int {
 	return 0
+}
+
+type Activities []*Game
+
+func (a *Activities) UnmarshalJSONArray(dec *gojay.Decoder) error {
+	instance := Game{}
+	err := dec.Object(&instance)
+	if err != nil {
+		return err
+	}
+	*a = append(*a, &instance)
+	return nil
 }
 
 // GameType is the type of "game" (see GameType* consts) in the Game struct
