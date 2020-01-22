@@ -77,6 +77,9 @@ type Message struct {
 
 	// A list of users mentioned in the message.
 	Mentions []*User `json:"mentions"`
+	
+	// Whether the message is pinned or not.
+	Pinned bool `json:"pinned"`
 
 	// A list of reactions to the message.
 	Reactions []*MessageReactions `json:"reactions"`
