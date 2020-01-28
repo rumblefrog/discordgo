@@ -779,6 +779,8 @@ func (g *GatewayConnection) open(sessionID string, sequence int64) error {
 
 	g.mu.Unlock()
 
+	g.manager.SetSessionInfo(sessionID, sequence)
+
 	if sessionID == "" {
 		return g.identify()
 	} else {
