@@ -229,8 +229,24 @@ type MessageEmbed struct {
 	Provider    *MessageEmbedProvider  `json:"provider,omitempty"`
 	Author      *MessageEmbedAuthor    `json:"author,omitempty"`
 	Fields      []*MessageEmbedField   `json:"fields,omitempty"`
+	
+	//flag that tells the marshaller to marshal struct as nil
+	marshalnil  bool		   `json:"-"`
 }
 
+func (e *MessageEmbed) MarshalNil(flag bool) *MessageEmbed {
+	e.marshalnil = flag
+	return e
+
+}
+
+func (e *MessageEmbed) MarshalJSON() ([]byte, error) {
+	if e.marshalnil == true {
+		return json.Marshal(nil)
+	}
+	type EmbedAlias MessageEmbed
+	return json.Marshal(&struct{*EmbedAlias}{EmbedAlias: (*EmbedAlias)(e),})
+}
 // MessageReactions holds a reactions object for a message.
 type MessageReactions struct {
 	Count int    `json:"count"`
