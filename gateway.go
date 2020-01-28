@@ -779,8 +779,6 @@ func (g *GatewayConnection) open(sessionID string, sequence int64) error {
 
 	g.mu.Unlock()
 
-	g.manager.SetSessionInfo(sessionID, sequence)
-
 	if sessionID == "" {
 		return g.identify()
 	} else {
@@ -1115,6 +1113,8 @@ func (g *GatewayConnection) handleReady(r *Ready) {
 	g.sessionID = r.SessionID
 	g.status = GatewayStatusReady
 	g.mu.Unlock()
+
+	g.manager.SetSessionInfo(r.SessionID, 0)
 }
 
 func (g *GatewayConnection) handleResumed(r *Resumed) {
