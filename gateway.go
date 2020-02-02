@@ -42,7 +42,7 @@ const MaxIntermediaryBuffersSize = 100000
 
 // GatewayIdentifyRatelimiter is if you need some custom identify ratelimit logic (if you're running shards across processes for example)
 type GatewayIdentifyRatelimiter interface {
-	RatelimitIdentify() // Called whenever an attempted identify is made, can be called from multiple goroutines at the same time
+	RatelimitIdentify(shardID int) // Called whenever an attempted identify is made, can be called from multiple goroutines at the same time
 }
 
 // Standard implementation of the GatewayIdentifyRatelimiter
@@ -51,7 +51,7 @@ type StdGatewayIdentifyRatleimiter struct {
 	once sync.Once
 }
 
-func (rl *StdGatewayIdentifyRatleimiter) RatelimitIdentify() {
+func (rl *StdGatewayIdentifyRatleimiter) RatelimitIdentify(shardID int) {
 	rl.once.Do(func() {
 		rl.ch = make(chan bool)
 		go func() {
@@ -1151,7 +1151,8 @@ func (g *GatewayConnection) identify() error {
 		Data:      data,
 	}
 
-	IdentifyRatelimiter.RatelimitIdentify()
+	// check if we need to wait before identifying
+	IdentifyRatelimiter.RatelimitIdentify(g.manager.shardID)
 
 	g.log(LogInformational, "Sending identify")
 
