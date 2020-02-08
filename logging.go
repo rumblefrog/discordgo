@@ -36,10 +36,11 @@ const (
 
 // Logger can be used to replace the standard logging for discordgo
 var Logger func(msgL, caller int, format string, a ...interface{})
+var GatewayLogger func(shardID int, connID int, msgL int, format string, a ...interface{})
 
 // msglog provides package wide logging consistancy for discordgo
 // the format, a...  portion this command follows that of fmt.Printf
-//   msgL   : LogLevel of the message
+//   msgL   : LogLevel of the messagez
 //   caller : 1 + the number of callers away from the message source
 //   format : Printf style message format
 //   a ...  : comma separated list of values to pass

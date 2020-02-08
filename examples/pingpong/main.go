@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"net/http"
@@ -17,15 +18,20 @@ import (
 var (
 	Token string
 	vc    *discordgo.VoiceConnection
+
+	sID int
 )
 
 func init() {
 
 	flag.StringVar(&Token, "t", "", "Bot Token")
+	flag.IntVar(&sID, "sid", 0, "Shard ID")
+
 	flag.Parse()
 }
 
 func main() {
+	fmt.Println("Using ", sID)
 
 	// Create a new Discord session using the provided bot token.
 	dg, err := discordgo.New("Bot " + Token)
@@ -34,13 +40,10 @@ func main() {
 		return
 	}
 
-	dg.ShardCount = 100
-	dg.ShardID = 14
+	dg.ShardCount = 192
+	dg.ShardID = sID
 
 	dg.LogLevel = discordgo.LogDebug
-
-	currentTransport := dg.Client.HTTPClient.Transport
-	dg.Client.HTTPClient.Transport = &LoggingTransport{Inner: currentTransport}
 
 	// manager := dshardmanager.New("Bot " + Token)
 	// manager.SessionFunc = func(token string) (*discordgo.Session, error) {
@@ -59,8 +62,11 @@ func main() {
 	// }
 
 	// // Register the messageCreate func as a callback for MessageCreate events.
-	dg.AddHandler(messageCreate)
+	// dg.AddHandler(messageCreate)
+	// dg.AddHandler(dumpMyOwnPresence)
 	// dg.AddHandler(dumpAll)
+	dg.AddHandler(channelCreate)
+	dg.AddHandler(channelUpdate)
 
 	// Open a websocket connection to Discord and begin listening.
 	err = dg.Open()
@@ -84,6 +90,20 @@ func dumpAll(s *discordgo.Session, evt interface{}) {
 	if _, ok := evt.(*discordgo.Event); !ok {
 		// fmt.Printf("Inc event: %#v\n", evt)
 	}
+}
+func dumpMyOwnPresence(s *discordgo.Session, evt *discordgo.PresenceUpdate) {
+	if evt.Presence.User.ID == 105487308693757952 {
+		serialized, _ := json.Marshal(evt)
+		fmt.Println(string(serialized))
+	}
+}
+
+func channelCreate(s *discordgo.Session, c *discordgo.ChannelCreate) {
+	fmt.Printf("Channel create: %d - %d\n", c.GuildID, c.Channel.ID)
+}
+
+func channelUpdate(s *discordgo.Session, c *discordgo.ChannelUpdate) {
+	fmt.Printf("Channel update: %d - %d\n", c.GuildID, c.Channel.ID)
 }
 
 // This function will be called (due to AddHandler above) every time a new

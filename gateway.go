@@ -142,8 +142,6 @@ type GatewayConnectionManager struct {
 	idCounter int
 
 	authFailed bool
-
-	customLogger func(shardID int, connectionID int, msgL int, msgf string, args ...interface{})
 }
 
 func (s *GatewayConnectionManager) SetSessionInfo(sessionID string, sequence int64) {
@@ -1211,8 +1209,8 @@ func (g *GatewayConnection) onError(err error, msgf string, args ...interface{})
 }
 
 func (g *GatewayConnection) log(msgL int, msgf string, args ...interface{}) {
-	if g.manager.customLogger != nil {
-		g.manager.customLogger(g.manager.shardID, g.connID, msgL, msgf, args...)
+	if GatewayLogger != nil {
+		GatewayLogger(g.manager.shardID, g.connID, msgL, msgf, args...)
 		return
 	}
 
